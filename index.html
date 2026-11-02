@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>sleek3d — simple 3D modelling</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <aside id="toolbar">
+      <h2>Add shape</h2>
+      <button class="shape" data-shape="box">Box</button>
+      <button class="shape" data-shape="cylinder">Cylinder</button>
+      <button class="shape" data-shape="sphere">Sphere</button>
+      <button class="shape" data-shape="cone">Cone</button>
+      <button class="shape" data-shape="torus">Torus</button>
+    </aside>
+
+    <aside id="panel">
+      <section id="inspector">
+        <h2>Inspector</h2>
+        <div id="inspector-empty" class="muted">Select a shape to edit it.</div>
+        <div id="inspector-body" hidden>
+          <div class="row">
+            <span>Rotate</span>
+            <button data-rot="-15" data-axis="x">X−</button>
+            <button data-rot="15" data-axis="x">X+</button>
+            <button data-rot="-15" data-axis="y">Y−</button>
+            <button data-rot="15" data-axis="y">Y+</button>
+            <button data-rot="-15" data-axis="z">Z−</button>
+            <button data-rot="15" data-axis="z">Z+</button>
+          </div>
+          <div class="row">
+            <label for="scale">Scale</label>
+            <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1" />
+          </div>
+          <div class="row">
+            <label for="color">Color</label>
+            <input id="color" type="color" value="#4a90d9" />
+          </div>
+          <div class="row">
+            <label for="hole">Hole</label>
+            <input id="hole" type="checkbox" />
+          </div>
+          <div class="row">
+            <button id="delete" class="danger">Delete</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="booleans">
+        <h2>Combine</h2>
+        <p class="hint">Shift-click to select two shapes.</p>
+        <button id="union" disabled>Union</button>
+        <button id="subtract" disabled>Subtract</button>
+        <button id="intersect" disabled>Intersect</button>
+      </section>
+
+      <section id="output">
+        <h2>Output</h2>
+        <label for="snap">Snap</label>
+        <select id="snap">
+          <option value="0.5">0.5</option>
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+        </select>
+        <button id="export">Export STL</button>
+        <button id="reset">Reset demo</button>
+      </section>
+    </aside>
+
+    <div id="help">
+      <strong>Left-drag</strong> move · <strong>Right-drag</strong> rotate view ·
+      <strong>Middle-drag</strong> pan · <strong>Scroll</strong> zoom ·
+      <strong>Shift-click</strong> multi-select · <strong>Del</strong> delete
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

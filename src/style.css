@@ -1,0 +1,162 @@
+:root {
+  --panel-bg: rgba(255, 255, 255, 0.95);
+  --border: #d0d7de;
+  --muted: #57606a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+}
+
+#app canvas {
+  display: block;
+}
+
+aside {
+  position: fixed;
+  top: 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+#toolbar {
+  left: 16px;
+  width: 150px;
+}
+
+#panel {
+  right: 16px;
+  width: 230px;
+}
+
+aside h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+#toolbar .shape {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+button {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #f6f8fa;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #eaeef2;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.danger {
+  color: #c81e1e;
+  border-color: #e5b3b3;
+}
+
+section {
+  margin-top: 14px;
+  border-top: 1px solid #eaecef;
+  padding-top: 10px;
+}
+
+section:first-child {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.row > span {
+  min-width: 46px;
+  color: var(--muted);
+}
+
+.row label {
+  min-width: 42px;
+}
+
+.row input[type="range"] {
+  width: 130px;
+}
+
+.muted {
+  color: #8b949e;
+  font-size: 13px;
+}
+
+.hint {
+  color: #8b949e;
+  font-size: 12px;
+  margin: 4px 0 8px;
+}
+
+#booleans button {
+  margin-right: 4px;
+  margin-bottom: 6px;
+}
+
+#output label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#output select,
+#output button {
+  display: block;
+  width: 100%;
+  margin: 6px 0;
+}
+
+#help {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 24, 28, 0.78);
+  color: #fff;
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+}
