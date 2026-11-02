@@ -22,9 +22,10 @@ npm run preview
 
 | Action | Input |
 | --- | --- |
-| Select a shape | Left-click |
+| Select a shape | Click |
 | Multi-select | Shift-click |
-| Move a shape (snapped to grid) | Left-drag |
+| Move / rotate / scale a shape | Drag the gizmo handles |
+| Switch tool | W / E / R keys or panel buttons |
 | Rotate the view | Right-drag |
 | Pan | Middle-drag |
 | Zoom | Scroll |
@@ -34,8 +35,9 @@ npm run preview
 ## Features
 
 - **Primitives** — box, cylinder, sphere, cone, torus (all drop in resting on the grid).
-- **Select & move** — click to select, drag on the ground plane with grid snapping (0.5 / 1 / 2 units).
-- **Inspector** — rotate (X/Y/Z), uniform scale, color, solid/hole toggle, delete.
+- **Transform gizmos** — draggable move / rotate / scale handles. Translation snaps to the grid (0.5 / 1 / 2 units), rotation snaps to 15°, and the Y handle lifts shapes vertically.
+- **Select** — click to select, shift-click to multi-select.
+- **Inspector** — uniform scale, color, solid/hole toggle, delete.
 - **Booleans** — select two shapes (shift-click) then Union, Subtract, or Intersect.
   - *Subtract* cuts the second shape out of the first.
   - Mark a shape as a **Hole** (rendered translucent red) to use it as a cutter.
@@ -47,10 +49,10 @@ npm run preview
 ```
 src/
   main.js         bootstrap + render loop + app actions
-  scene.js        renderer, camera, lights, ground/grid, OrbitControls
+  scene.js        renderer, camera, lights, ground/grid, Orbit/Transform controls
   shapes.js       primitive factories
   booleans.js     CSG wrapper (union / subtract / intersect)
-  interaction.js  selection + drag-with-snap
+  interaction.js  selection + keyboard shortcuts
   ui.js           toolbar/panel wiring + STL export
 ```
 
@@ -65,7 +67,6 @@ complex geometry) only requires editing that one file.
 
 ## Roadmap (not yet implemented)
 
-- Transform gizmos (drag arrows / rotation rings) instead of panel buttons
 - Undo / redo (command pattern)
 - Grouping, alignment, duplication
 - More primitives and parametric shape generators

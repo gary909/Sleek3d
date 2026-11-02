@@ -24,13 +24,10 @@
         <div id="inspector-empty" class="muted">Select a shape to edit it.</div>
         <div id="inspector-body" hidden>
           <div class="row">
-            <span>Rotate</span>
-            <button data-rot="-15" data-axis="x">X−</button>
-            <button data-rot="15" data-axis="x">X+</button>
-            <button data-rot="-15" data-axis="y">Y−</button>
-            <button data-rot="15" data-axis="y">Y+</button>
-            <button data-rot="-15" data-axis="z">Z−</button>
-            <button data-rot="15" data-axis="z">Z+</button>
+            <span>Tool</span>
+            <button data-mode="translate" class="active">Move</button>
+            <button data-mode="rotate">Rotate</button>
+            <button data-mode="scale">Scale</button>
           </div>
           <div class="row">
             <label for="scale">Scale</label>
@@ -72,9 +69,10 @@
     </aside>
 
     <div id="help">
-      <strong>Left-drag</strong> move · <strong>Right-drag</strong> rotate view ·
-      <strong>Middle-drag</strong> pan · <strong>Scroll</strong> zoom ·
-      <strong>Shift-click</strong> multi-select · <strong>Del</strong> delete
+      <strong>Click</strong> select · <strong>Shift-click</strong> multi-select ·
+      <strong>Drag gizmo</strong> move/rotate/scale · <strong>W/E/R</strong> tool ·
+      <strong>Right-drag</strong> orbit · <strong>Middle-drag</strong> pan ·
+      <strong>Scroll</strong> zoom · <strong>Del</strong> delete
     </div>
 
     <script type="module" src="/src/main.js"></script>

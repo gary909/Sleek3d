@@ -1,7 +1,6 @@
 export function createUI({
   state,
   onAdd,
-  onRotate,
   onScale,
   onColor,
   onToggleHole,
@@ -10,6 +9,7 @@ export function createUI({
   onExport,
   onReset,
   onSnap,
+  onSetMode,
 }) {
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorBody = document.getElementById('inspector-body');
@@ -21,13 +21,14 @@ export function createUI({
   const unionBtn = document.getElementById('union');
   const subtractBtn = document.getElementById('subtract');
   const intersectBtn = document.getElementById('intersect');
+  const modeBtns = Array.from(document.querySelectorAll('#inspector [data-mode]'));
 
   document.querySelectorAll('#toolbar .shape').forEach((btn) => {
     btn.addEventListener('click', () => onAdd(btn.dataset.shape));
   });
 
-  document.querySelectorAll('#inspector [data-rot]').forEach((btn) => {
-    btn.addEventListener('click', () => onRotate(btn.dataset.axis, Number(btn.dataset.rot)));
+  modeBtns.forEach((btn) => {
+    btn.addEventListener('click', () => onSetMode(btn.dataset.mode));
   });
 
   scaleInput.addEventListener('input', () => onScale(Number(scaleInput.value)));
@@ -64,5 +65,11 @@ export function createUI({
     }
   }
 
-  return { refresh };
+  function setActiveMode(mode) {
+    modeBtns.forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+  }
+
+  return { refresh, setActiveMode };
 }

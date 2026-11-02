@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 export function createRenderer(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -82,6 +83,16 @@ export function createControls(camera, domElement) {
     RIGHT: THREE.MOUSE.ROTATE,
   };
   return controls;
+}
+
+export function createTransformControls(camera, domElement) {
+  const transform = new TransformControls(camera, domElement);
+  transform.setMode('translate');
+  transform.setSize(0.9);
+  transform.setTranslationSnap(1);
+  transform.setRotationSnap(THREE.MathUtils.degToRad(15));
+  transform.setScaleSnap(0.1);
+  return transform;
 }
 
 export function handleResize(renderer, camera, container) {

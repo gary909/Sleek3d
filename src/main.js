@@ -7,6 +7,7 @@ import {
   createLights,
   createGround,
   createControls,
+  createTransformControls,
   handleResize,
 } from './scene.js';
 import { SHAPE_FACTORIES } from './shapes.js';
@@ -22,6 +23,8 @@ const camera = createCamera(container);
 createLights(scene);
 createGround(scene);
 const controls = createControls(camera, renderer.domElement);
+const transformControls = createTransformControls(camera, renderer.domElement);
+scene.add(transformControls.getHelper());
 handleResize(renderer, camera, container);
 
 const state = {
@@ -33,7 +36,6 @@ const state = {
 const ui = createUI({
   state,
   onAdd: addShape,
-  onRotate,
   onScale,
   onColor,
   onToggleHole,
@@ -42,14 +44,27 @@ const ui = createUI({
   onExport,
   onReset,
   onSnap,
+  onSetMode,
 });
 
 const interaction = createInteraction({
   renderer,
   camera,
   state,
-  onSelectionChange: () => ui.refresh(),
+  onSelectionChange: () => {
+    ui.refresh();
+    syncGizmo();
+  },
   onDelete,
+  onSetMode,
+});
+
+transformControls.addEventListener('dragging-changed', (event) => {
+  controls.enabled = !event.value;
+});
+
+transformControls.addEventListener('objectChange', () => {
+  ui.refresh();
 });
 
 // ---- shape management -------------------------------------------------------
@@ -62,6 +77,7 @@ function addShape(type) {
 }
 
 function removeShape(mesh) {
+  if (transformControls.object === mesh) transformControls.detach();
   scene.remove(mesh);
   state.shapes = state.shapes.filter((m) => m !== mesh);
   mesh.geometry.dispose();
@@ -88,14 +104,23 @@ function setHole(mesh, isHole) {
   }
 }
 
-// ---- inspector actions ------------------------------------------------------
+// ---- gizmo -------------------------------------------------------------------
 
-function onRotate(axis, degrees) {
-  const rad = THREE.MathUtils.degToRad(degrees);
-  state.selected.forEach((m) => {
-    m.rotation[axis] += rad;
-  });
+function syncGizmo() {
+  const target = state.selected[0] ?? null;
+  if (target) {
+    if (transformControls.object !== target) transformControls.attach(target);
+  } else {
+    transformControls.detach();
+  }
 }
+
+function onSetMode(mode) {
+  transformControls.setMode(mode);
+  ui.setActiveMode(mode);
+}
+
+// ---- inspector actions ------------------------------------------------------
 
 function onScale(value) {
   state.selected.forEach((m) => m.scale.setScalar(value));
@@ -149,6 +174,7 @@ function onReset() {
 
 function onSnap(value) {
   state.snap = value;
+  transformControls.setTranslationSnap(value);
 }
 
 function download(filename, text) {

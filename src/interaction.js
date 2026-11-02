@@ -1,16 +1,21 @@
 import * as THREE from 'three';
 
 const HIGHLIGHT_HEX = 0x555555;
+const CLICK_THRESHOLD_PX = 6;
 
-export function createInteraction({ renderer, camera, state, onSelectionChange, onDelete }) {
+export function createInteraction({
+  renderer,
+  camera,
+  state,
+  onSelectionChange,
+  onDelete,
+  onSetMode,
+}) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const hitPoint = new THREE.Vector3();
-  const grabOffset = new THREE.Vector3();
 
-  let dragging = false;
-  let dragMesh = null;
+  let downX = 0;
+  let downY = 0;
 
   function updatePointer(event) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -32,6 +37,11 @@ export function createInteraction({ renderer, camera, state, onSelectionChange, 
   }
 
   function setSelected(meshes) {
+    const unchanged =
+      meshes.length === state.selected.length &&
+      meshes.every((m, i) => m === state.selected[i]);
+    if (unchanged) return;
+
     state.selected = meshes;
     applyHighlight();
     onSelectionChange?.();
@@ -48,58 +58,40 @@ export function createInteraction({ renderer, camera, state, onSelectionChange, 
     }
   }
 
-  function snapToGrid(value) {
-    return Math.round(value / state.snap) * state.snap;
+  // Selection happens on pointer *up*, and only if the pointer barely moved (a real
+  // click). This way dragging a gizmo handle or orbiting never changes the selection.
+  function onPointerDown(event) {
+    if (event.button !== 0) return;
+    downX = event.clientX;
+    downY = event.clientY;
   }
 
-  function onPointerDown(event) {
-    if (event.button !== 0) return; // left button only
+  function onPointerUp(event) {
+    if (event.button !== 0) return;
+    if (Math.hypot(event.clientX - downX, event.clientY - downY) > CLICK_THRESHOLD_PX) {
+      return;
+    }
     const mesh = pick(event);
     select(mesh, event.shiftKey);
-
-    if (mesh) {
-      dragging = true;
-      dragMesh = mesh;
-      // Drag on the horizontal plane through the mesh's pivot (keeps it grounded).
-      dragPlane.constant = -mesh.position.y;
-      if (raycaster.ray.intersectPlane(dragPlane, hitPoint)) {
-        grabOffset.copy(mesh.position).sub(hitPoint);
-      } else {
-        grabOffset.set(0, 0, 0);
-      }
-    }
-  }
-
-  function onPointerMove(event) {
-    if (!dragging || !dragMesh) return;
-    updatePointer(event);
-    if (raycaster.ray.intersectPlane(dragPlane, hitPoint)) {
-      const x = snapToGrid(hitPoint.x + grabOffset.x);
-      const z = snapToGrid(hitPoint.z + grabOffset.z);
-      dragMesh.position.set(x, dragMesh.position.y, z);
-    }
-  }
-
-  function onPointerUp() {
-    dragging = false;
-    dragMesh = null;
-  }
-
-  function onKeyDown(event) {
-    if (event.key === 'Escape') setSelected([]);
-    if (event.key === 'Delete' || event.key === 'Backspace') {
-      if (state.selected.length && !isTyping(event.target)) {
-        onDelete?.();
-      }
-    }
   }
 
   function isTyping(target) {
     return target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
   }
 
+  function onKeyDown(event) {
+    if (isTyping(event.target)) return;
+
+    if (event.key === 'Escape') setSelected([]);
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (state.selected.length) onDelete?.();
+    }
+    if (event.key === 'w' || event.key === 'W') onSetMode?.('translate');
+    if (event.key === 'e' || event.key === 'E') onSetMode?.('rotate');
+    if (event.key === 'r' || event.key === 'R') onSetMode?.('scale');
+  }
+
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
-  window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('keydown', onKeyDown);
 

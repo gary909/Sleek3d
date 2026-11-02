@@ -85,6 +85,12 @@ button.danger {
   border-color: #e5b3b3;
 }
 
+button.active {
+  background: #2b6cb0;
+  border-color: #2b6cb0;
+  color: #fff;
+}
+
 section {
   margin-top: 14px;
   border-top: 1px solid #eaecef;
