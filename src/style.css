@@ -150,6 +150,25 @@ section:first-child {
   margin-bottom: 6px;
 }
 
+.align-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.align-row > span {
+  width: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.align-row button {
+  flex: 1;
+  padding: 3px 4px;
+  font-size: 12px;
+}
+
 #output label {
   font-size: 13px;
   color: var(--muted);

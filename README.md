@@ -47,6 +47,8 @@ npm run preview
 - **Primitives** — box, cylinder, sphere, cone, torus, wedge, pyramid, hemisphere, prism, star (all drop in resting on the grid).
 - **Editable dimensions** — select a shape to tweak its width/height/radius/points in the inspector.
 - **Polish** — hover highlighting, image-based studio lighting + filmic tone mapping, and a major/minor grid.
+- **Text** — add 3D extruded text (uses a bundled font).
+- **Alignment** — align selected shapes to min / center / max on X, Y, and Z.
 - **Transform gizmos** — draggable move / rotate / scale handles. Translation snaps to the grid (0.5 / 1 / 2 units), rotation snaps to 15°, and the Y handle lifts shapes vertically.
 - **Select** — click to select, shift-click to multi-select.
 - **Inspector** — uniform scale, color, solid/hole toggle, delete.
@@ -82,7 +84,11 @@ result geometry, and returns a fresh mesh. Swapping the CSG backend (e.g. to
 [`manifold-3d`](https://www.npmjs.com/package/manifold-3d) for more robust results on
 complex geometry) only requires editing that one file.
 
-## Roadmap (not yet implemented)
+## Roadmap
 
-- Alignment tools (align centers / edges)
-- Text shape (needs a font asset)
+The core feature set is complete. Possible future ideas:
+
+- History limits / snapshots
+- Binary STL and GLTF export
+- Per-face colors / multi-material
+- Collaboration and cloud save

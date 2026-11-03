@@ -17,6 +17,7 @@ import { createInteraction } from './interaction.js';
 import { createUI } from './ui.js';
 import { createHistory } from './history.js';
 import { saveProject, loadProject } from './save.js';
+import { createTextMesh } from './text.js';
 
 const container = document.getElementById('app');
 
@@ -85,6 +86,7 @@ const ui = createUI({
   onNew,
   onParamChange,
   onParamCommit,
+  onAlign,
 });
 
 const interaction = createInteraction({
@@ -138,7 +140,24 @@ transformControls.addEventListener('mouseUp', () => {
 // ---- shape management -------------------------------------------------------
 
 function addShape(type) {
+  if (type === 'text') {
+    addTextShape();
+    return;
+  }
+
   const mesh = SHAPE_FACTORIES[type]();
+  scene.add(mesh);
+  state.shapes.push(mesh);
+  interaction.setSelected([mesh]);
+  history.push(commandAdd(mesh));
+  updateHistoryUI();
+  scheduleSave();
+}
+
+async function addTextShape() {
+  const text = window.prompt('Text to add', 'Sleek3d');
+  if (!text || !text.trim()) return;
+  const mesh = await createTextMesh(text.trim());
   scene.add(mesh);
   state.shapes.push(mesh);
   interaction.setSelected([mesh]);
@@ -604,6 +623,50 @@ function focusSelected() {
   controls.target.copy(center);
   camera.position.copy(center).addScaledVector(direction, distance);
   controls.update();
+}
+
+// ---- alignment ---------------------------------------------------------------
+
+function objectBox(object) {
+  object.updateWorldMatrix(true, false);
+  const box = new THREE.Box3();
+  getMeshes(object).forEach((m) => box.expandByObject(m));
+  return box;
+}
+
+function alignSelection(axis, mode) {
+  const objects = [...state.selected];
+  if (objects.length < 2) return;
+
+  const combined = new THREE.Box3();
+  objects.forEach((o) => combined.union(objectBox(o)));
+  if (combined.isEmpty()) return;
+
+  const reference =
+    mode === 'min' ? combined.min[axis] :
+    mode === 'max' ? combined.max[axis] :
+    (combined.min[axis] + combined.max[axis]) / 2;
+
+  const before = objects.map((o) => captureTransform(o));
+
+  objects.forEach((o) => {
+    const b = objectBox(o);
+    const current =
+      mode === 'min' ? b.min[axis] :
+      mode === 'max' ? b.max[axis] :
+      (b.min[axis] + b.max[axis]) / 2;
+    o.position[axis] += reference - current;
+  });
+
+  const after = objects.map((o) => captureTransform(o));
+  if (objects.some((o, i) => !transformsEqual(before[i], after[i]))) {
+    history.push({
+      undo: () => objects.forEach((o, i) => applyTransform(o, before[i])),
+      redo: () => objects.forEach((o, i) => applyTransform(o, after[i])),
+    });
+    updateHistoryUI();
+  }
+  scheduleSave();
 }
 
 // ---- export / reset / snap --------------------------------------------------

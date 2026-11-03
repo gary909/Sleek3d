@@ -22,6 +22,7 @@ export function createUI({
   onNew,
   onParamChange,
   onParamCommit,
+  onAlign,
 }) {
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorBody = document.getElementById('inspector-body');
@@ -41,6 +42,7 @@ export function createUI({
   const ungroupBtn = document.getElementById('ungroup');
   const newBtn = document.getElementById('new');
   const dimContainer = document.getElementById('dimensions');
+  const alignBtns = Array.from(document.querySelectorAll('#align [data-align]'));
 
   document.querySelectorAll('#toolbar .shape').forEach((btn) => {
     btn.addEventListener('click', () => onAdd(btn.dataset.shape));
@@ -63,6 +65,13 @@ export function createUI({
   groupBtn.addEventListener('click', onGroup);
   ungroupBtn.addEventListener('click', onUngroup);
   newBtn.addEventListener('click', onNew);
+
+  alignBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [axis, mode] = btn.dataset.align.split(',');
+      onAlign(axis, mode);
+    });
+  });
 
   unionBtn.addEventListener('click', () => onBoolean('union'));
   subtractBtn.addEventListener('click', () => onBoolean('subtract'));
@@ -130,6 +139,7 @@ export function createUI({
     subtractBtn.disabled = !canCombine;
     intersectBtn.disabled = !canCombine;
     deleteBtn.disabled = !hasSelection;
+    alignBtns.forEach((b) => { b.disabled = sel.length < 2; });
     renderDimensions(primary);
 
     if (primary) {

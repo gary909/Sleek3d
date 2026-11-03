@@ -21,6 +21,7 @@
       <button class="shape" data-shape="hemisphere">Hemisphere</button>
       <button class="shape" data-shape="prism">Prism</button>
       <button class="shape" data-shape="star">Star</button>
+      <button class="shape" data-shape="text">Text</button>
     </aside>
 
     <aside id="panel">
@@ -68,6 +69,14 @@
         <button id="union" disabled>Union</button>
         <button id="subtract" disabled>Subtract</button>
         <button id="intersect" disabled>Intersect</button>
+      </section>
+
+      <section id="align">
+        <h2>Align</h2>
+        <p class="hint">Aligns all selected shapes (2+).</p>
+        <div class="align-row"><span>X</span><button data-align="x,min">Min</button><button data-align="x,center">Center</button><button data-align="x,max">Max</button></div>
+        <div class="align-row"><span>Y</span><button data-align="y,min">Min</button><button data-align="y,center">Center</button><button data-align="y,max">Max</button></div>
+        <div class="align-row"><span>Z</span><button data-align="z,min">Min</button><button data-align="z,center">Center</button><button data-align="z,max">Max</button></div>
       </section>
 
       <section id="output">
