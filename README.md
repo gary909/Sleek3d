@@ -26,6 +26,7 @@ npm run preview
 | Multi-select | Shift-click |
 | Move / rotate / scale a shape | Drag the gizmo handles |
 | Switch tool | W / E / R keys or panel buttons |
+| Undo / redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (or buttons) |
 | Rotate the view | Right-drag |
 | Pan | Middle-drag |
 | Zoom | Scroll |
@@ -38,6 +39,7 @@ npm run preview
 - **Transform gizmos** — draggable move / rotate / scale handles. Translation snaps to the grid (0.5 / 1 / 2 units), rotation snaps to 15°, and the Y handle lifts shapes vertically.
 - **Select** — click to select, shift-click to multi-select.
 - **Inspector** — uniform scale, color, solid/hole toggle, delete.
+- **Undo / redo** — full history (add, delete, booleans, transforms, color, hole, scale) via Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z or the panel buttons.
 - **Booleans** — select two shapes (shift-click) then Union, Subtract, or Intersect.
   - *Subtract* cuts the second shape out of the first.
   - Mark a shape as a **Hole** (rendered translucent red) to use it as a cutter.
@@ -54,6 +56,7 @@ src/
   booleans.js     CSG wrapper (union / subtract / intersect)
   interaction.js  selection + keyboard shortcuts
   ui.js           toolbar/panel wiring + STL export
+  history.js      undo/redo stack
 ```
 
 ## How it works
@@ -67,7 +70,6 @@ complex geometry) only requires editing that one file.
 
 ## Roadmap (not yet implemented)
 
-- Undo / redo (command pattern)
 - Grouping, alignment, duplication
 - More primitives and parametric shape generators
 - Multiple groups / "group selected" like Tinkercad

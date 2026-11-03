@@ -2,7 +2,9 @@ export function createUI({
   state,
   onAdd,
   onScale,
+  onScaleCommit,
   onColor,
+  onColorCommit,
   onToggleHole,
   onDelete,
   onBoolean,
@@ -10,6 +12,8 @@ export function createUI({
   onReset,
   onSnap,
   onSetMode,
+  onUndo,
+  onRedo,
 }) {
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorBody = document.getElementById('inspector-body');
@@ -22,6 +26,8 @@ export function createUI({
   const subtractBtn = document.getElementById('subtract');
   const intersectBtn = document.getElementById('intersect');
   const modeBtns = Array.from(document.querySelectorAll('#inspector [data-mode]'));
+  const undoBtn = document.getElementById('undo');
+  const redoBtn = document.getElementById('redo');
 
   document.querySelectorAll('#toolbar .shape').forEach((btn) => {
     btn.addEventListener('click', () => onAdd(btn.dataset.shape));
@@ -32,9 +38,14 @@ export function createUI({
   });
 
   scaleInput.addEventListener('input', () => onScale(Number(scaleInput.value)));
+  scaleInput.addEventListener('change', onScaleCommit);
   colorInput.addEventListener('input', () => onColor(colorInput.value));
+  colorInput.addEventListener('change', onColorCommit);
   holeInput.addEventListener('change', () => onToggleHole(holeInput.checked));
   deleteBtn.addEventListener('click', onDelete);
+
+  undoBtn.addEventListener('click', onUndo);
+  redoBtn.addEventListener('click', onRedo);
 
   unionBtn.addEventListener('click', () => onBoolean('union'));
   subtractBtn.addEventListener('click', () => onBoolean('subtract'));
@@ -71,5 +82,10 @@ export function createUI({
     });
   }
 
-  return { refresh, setActiveMode };
+  function setHistoryState(canUndo, canRedo) {
+    undoBtn.disabled = !canUndo;
+    redoBtn.disabled = !canRedo;
+  }
+
+  return { refresh, setActiveMode, setHistoryState };
 }

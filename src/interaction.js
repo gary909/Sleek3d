@@ -10,6 +10,8 @@ export function createInteraction({
   onSelectionChange,
   onDelete,
   onSetMode,
+  onUndo,
+  onRedo,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -81,6 +83,19 @@ export function createInteraction({
 
   function onKeyDown(event) {
     if (isTyping(event.target)) return;
+
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && (event.key === 'z' || event.key === 'Z')) {
+      event.preventDefault();
+      if (event.shiftKey) onRedo?.();
+      else onUndo?.();
+      return;
+    }
+    if (mod && (event.key === 'y' || event.key === 'Y')) {
+      event.preventDefault();
+      onRedo?.();
+      return;
+    }
 
     if (event.key === 'Escape') setSelected([]);
     if (event.key === 'Delete' || event.key === 'Backspace') {

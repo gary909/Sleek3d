@@ -14,6 +14,7 @@ import { SHAPE_FACTORIES } from './shapes.js';
 import { booleanOperation } from './booleans.js';
 import { createInteraction } from './interaction.js';
 import { createUI } from './ui.js';
+import { createHistory } from './history.js';
 
 const container = document.getElementById('app');
 
@@ -33,11 +34,21 @@ const state = {
   snap: 1,
 };
 
+const history = createHistory();
+
+// "Before" snapshots for continuous inputs (scale slider / color picker) so a
+// whole gesture collapses into a single undo step.
+let scaleBefore = null;
+let colorBefore = null;
+let gizmoBefore = null;
+
 const ui = createUI({
   state,
   onAdd: addShape,
   onScale,
+  onScaleCommit,
   onColor,
+  onColorCommit,
   onToggleHole,
   onDelete,
   onBoolean,
@@ -45,6 +56,8 @@ const ui = createUI({
   onReset,
   onSnap,
   onSetMode,
+  onUndo: performUndo,
+  onRedo: performRedo,
 });
 
 const interaction = createInteraction({
@@ -57,6 +70,8 @@ const interaction = createInteraction({
   },
   onDelete,
   onSetMode,
+  onUndo: performUndo,
+  onRedo: performRedo,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -67,6 +82,23 @@ transformControls.addEventListener('objectChange', () => {
   ui.refresh();
 });
 
+transformControls.addEventListener('mouseDown', () => {
+  const obj = transformControls.object;
+  if (obj) gizmoBefore = captureTransform(obj);
+});
+
+transformControls.addEventListener('mouseUp', () => {
+  const obj = transformControls.object;
+  if (obj && gizmoBefore) {
+    const after = captureTransform(obj);
+    if (!transformsEqual(gizmoBefore, after)) {
+      history.push(commandTransform(obj, gizmoBefore, after));
+      updateHistoryUI();
+    }
+  }
+  gizmoBefore = null;
+});
+
 // ---- shape management -------------------------------------------------------
 
 function addShape(type) {
@@ -74,6 +106,8 @@ function addShape(type) {
   scene.add(mesh);
   state.shapes.push(mesh);
   interaction.setSelected([mesh]);
+  history.push(commandAdd(mesh));
+  updateHistoryUI();
 }
 
 function removeShape(mesh) {
@@ -120,26 +154,181 @@ function onSetMode(mode) {
   ui.setActiveMode(mode);
 }
 
+// ---- history & commands -----------------------------------------------------
+
+function captureTransform(mesh) {
+  return {
+    position: mesh.position.clone(),
+    quaternion: mesh.quaternion.clone(),
+    scale: mesh.scale.clone(),
+  };
+}
+
+function applyTransform(mesh, t) {
+  mesh.position.copy(t.position);
+  mesh.quaternion.copy(t.quaternion);
+  mesh.scale.copy(t.scale);
+  mesh.rotation.setFromQuaternion(mesh.quaternion);
+}
+
+function transformsEqual(a, b) {
+  return (
+    a.position.equals(b.position) &&
+    a.quaternion.equals(b.quaternion) &&
+    a.scale.equals(b.scale)
+  );
+}
+
+function setColor(mesh, hex) {
+  mesh.material.color.setHex(hex);
+  mesh.userData._prevColor = hex;
+}
+
+function commandAdd(mesh) {
+  return {
+    undo: () => removeShape(mesh),
+    redo: () => {
+      scene.add(mesh);
+      state.shapes.push(mesh);
+    },
+  };
+}
+
+function commandDelete(meshes) {
+  return {
+    undo: () => {
+      meshes.forEach((m) => {
+        scene.add(m);
+        state.shapes.push(m);
+      });
+    },
+    redo: () => meshes.forEach(removeShape),
+  };
+}
+
+function commandBoolean(a, b, result) {
+  return {
+    undo: () => {
+      removeShape(result);
+      scene.add(a);
+      state.shapes.push(a);
+      scene.add(b);
+      state.shapes.push(b);
+    },
+    redo: () => {
+      removeShape(a);
+      removeShape(b);
+      scene.add(result);
+      state.shapes.push(result);
+    },
+  };
+}
+
+function commandTransform(mesh, before, after) {
+  return {
+    undo: () => applyTransform(mesh, before),
+    redo: () => applyTransform(mesh, after),
+  };
+}
+
+function commandScale(meshes, before, after) {
+  return {
+    undo: () => meshes.forEach((m, i) => m.scale.copy(before[i])),
+    redo: () => meshes.forEach((m, i) => m.scale.copy(after[i])),
+  };
+}
+
+function commandColor(meshes, before, after) {
+  return {
+    undo: () => meshes.forEach((m, i) => setColor(m, before[i])),
+    redo: () => meshes.forEach((m, i) => setColor(m, after[i])),
+  };
+}
+
+function commandHole(meshes, beforeIsHole, afterIsHole) {
+  return {
+    undo: () => meshes.forEach((m, i) => setHole(m, beforeIsHole[i])),
+    redo: () => meshes.forEach((m, i) => setHole(m, afterIsHole[i])),
+  };
+}
+
+function updateHistoryUI() {
+  ui.setHistoryState(history.canUndo(), history.canRedo());
+}
+
+function performUndo() {
+  if (!history.canUndo()) return;
+  history.undo();
+  interaction.setSelected([]);
+  updateHistoryUI();
+}
+
+function performRedo() {
+  if (!history.canRedo()) return;
+  history.redo();
+  interaction.setSelected([]);
+  updateHistoryUI();
+}
+
 // ---- inspector actions ------------------------------------------------------
 
 function onScale(value) {
+  if (!scaleBefore) {
+    scaleBefore = new Map(state.selected.map((m) => [m, m.scale.clone()]));
+  }
   state.selected.forEach((m) => m.scale.setScalar(value));
 }
 
+function onScaleCommit() {
+  if (!scaleBefore) return;
+  const meshes = [...scaleBefore.keys()];
+  const before = meshes.map((m) => scaleBefore.get(m));
+  const after = meshes.map((m) => m.scale.clone());
+  scaleBefore = null;
+
+  if (meshes.some((m, i) => !before[i].equals(after[i]))) {
+    history.push(commandScale(meshes, before, after));
+    updateHistoryUI();
+  }
+}
+
 function onColor(hex) {
-  state.selected.forEach((m) => {
-    m.material.color.set(hex);
-    m.userData._prevColor = hex;
-  });
+  const value = new THREE.Color(hex).getHex();
+  if (!colorBefore) {
+    colorBefore = new Map(state.selected.map((m) => [m, m.material.color.getHex()]));
+  }
+  state.selected.forEach((m) => setColor(m, value));
+}
+
+function onColorCommit() {
+  if (!colorBefore) return;
+  const meshes = [...colorBefore.keys()];
+  const before = meshes.map((m) => colorBefore.get(m));
+  const after = meshes.map((m) => m.material.color.getHex());
+  colorBefore = null;
+
+  if (meshes.some((m, i) => before[i] !== after[i])) {
+    history.push(commandColor(meshes, before, after));
+    updateHistoryUI();
+  }
 }
 
 function onToggleHole(isHole) {
-  state.selected.forEach((m) => setHole(m, isHole));
+  const meshes = [...state.selected];
+  if (!meshes.length) return;
+  const before = meshes.map((m) => !m.userData.solid);
+  meshes.forEach((m) => setHole(m, isHole));
+  history.push(commandHole(meshes, before, meshes.map(() => isHole)));
+  updateHistoryUI();
 }
 
 function onDelete() {
-  [...state.selected].forEach(removeShape);
+  const meshes = [...state.selected];
+  if (!meshes.length) return;
+  meshes.forEach(removeShape);
   interaction.setSelected([]);
+  history.push(commandDelete(meshes));
+  updateHistoryUI();
 }
 
 // ---- booleans ---------------------------------------------------------------
@@ -153,6 +342,8 @@ function onBoolean(op) {
   scene.add(result);
   state.shapes.push(result);
   interaction.setSelected([result]);
+  history.push(commandBoolean(a, b, result));
+  updateHistoryUI();
 }
 
 // ---- export / reset / snap --------------------------------------------------
@@ -170,6 +361,8 @@ function onReset() {
   [...state.shapes].forEach(removeShape);
   seedDemo();
   interaction.setSelected([]);
+  history.clear();
+  updateHistoryUI();
 }
 
 function onSnap(value) {
@@ -221,6 +414,7 @@ function seedDemo() {
 
 seedDemo();
 ui.refresh();
+updateHistoryUI();
 
 function animate() {
   requestAnimationFrame(animate);
