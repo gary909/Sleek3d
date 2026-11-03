@@ -130,6 +130,10 @@ section:first-child {
   width: 130px;
 }
 
+.row input[type="number"] {
+  width: 120px;
+}
+
 .muted {
   color: #8b949e;
   font-size: 13px;

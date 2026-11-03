@@ -10,7 +10,7 @@ import {
   createTransformControls,
   handleResize,
 } from './scene.js';
-import { SHAPE_FACTORIES } from './shapes.js';
+import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createInteraction } from './interaction.js';
 import { createUI } from './ui.js';
@@ -42,6 +42,7 @@ const history = createHistory();
 let scaleBefore = null;
 let colorBefore = null;
 let gizmoBefore = null;
+let resizeGesture = null;
 
 let saveTimer = null;
 
@@ -79,6 +80,8 @@ const ui = createUI({
   onGroup: groupSelected,
   onUngroup: ungroupSelected,
   onNew,
+  onParamChange,
+  onParamCommit,
 });
 
 const interaction = createInteraction({
@@ -318,6 +321,13 @@ function commandUngroup(entries) {
   };
 }
 
+function commandReshape(mesh, beforeParams, afterParams) {
+  return {
+    undo: () => rebuildShapeGeometry(mesh, beforeParams),
+    redo: () => rebuildShapeGeometry(mesh, afterParams),
+  };
+}
+
 function updateHistoryUI() {
   ui.setHistoryState(history.canUndo(), history.canRedo());
 }
@@ -327,6 +337,7 @@ function performUndo() {
   history.undo();
   interaction.setSelected([]);
   updateHistoryUI();
+  scheduleSave();
 }
 
 function performRedo() {
@@ -334,6 +345,7 @@ function performRedo() {
   history.redo();
   interaction.setSelected([]);
   updateHistoryUI();
+  scheduleSave();
 }
 
 // ---- inspector actions ------------------------------------------------------
@@ -379,6 +391,32 @@ function onColorCommit() {
     history.push(commandColor(meshes, before, after));
     updateHistoryUI();
     scheduleSave();
+  }
+}
+
+function editableMesh(object) {
+  if (!object || !object.isMesh) return null;
+  return SHAPE_DEFS[object.userData.shapeType] ? object : null;
+}
+
+function onParamChange(params) {
+  const mesh = editableMesh(state.selected[0]);
+  if (!mesh) return;
+  if (!resizeGesture || resizeGesture.mesh !== mesh) {
+    resizeGesture = { mesh, beforeParams: { ...mesh.userData.params } };
+  }
+  rebuildShapeGeometry(mesh, params);
+  scheduleSave();
+}
+
+function onParamCommit() {
+  if (!resizeGesture) return;
+  const { mesh, beforeParams } = resizeGesture;
+  resizeGesture = null;
+  const afterParams = { ...mesh.userData.params };
+  if (JSON.stringify(beforeParams) !== JSON.stringify(afterParams)) {
+    history.push(commandReshape(mesh, beforeParams, afterParams));
+    updateHistoryUI();
   }
 }
 

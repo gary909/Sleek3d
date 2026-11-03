@@ -40,7 +40,8 @@ npm run preview
 
 ## Features
 
-- **Primitives** — box, cylinder, sphere, cone, torus (all drop in resting on the grid).
+- **Primitives** — box, cylinder, sphere, cone, torus, wedge, pyramid, hemisphere, prism, star (all drop in resting on the grid).
+- **Editable dimensions** — select a shape to tweak its width/height/radius/points in the inspector.
 - **Transform gizmos** — draggable move / rotate / scale handles. Translation snaps to the grid (0.5 / 1 / 2 units), rotation snaps to 15°, and the Y handle lifts shapes vertically.
 - **Select** — click to select, shift-click to multi-select.
 - **Inspector** — uniform scale, color, solid/hole toggle, delete.
@@ -79,4 +80,4 @@ complex geometry) only requires editing that one file.
 ## Roadmap (not yet implemented)
 
 - Alignment tools (align centers / edges)
-- More primitives and parametric shape generators
+- Text shape (needs a font asset)

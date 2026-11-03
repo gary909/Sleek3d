@@ -35,6 +35,8 @@ function objectToJSON(object) {
       // color lives in `_prevColor`.
       color: object.userData._prevColor ?? object.material.color.getHex(),
       solid: object.userData.solid !== false,
+      shapeType: object.userData.shapeType ?? 'combined',
+      params: object.userData.params ?? null,
       geometry: geometryToJSON(object.geometry),
     };
   }
@@ -63,7 +65,11 @@ function objectFromJSON(json) {
     mesh.matrix.fromArray(json.matrix);
     mesh.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
     mesh.rotation.setFromQuaternion(mesh.quaternion);
-    mesh.userData = { solid: json.solid, shapeType: 'saved' };
+    mesh.userData = {
+      solid: json.solid,
+      shapeType: json.shapeType ?? 'combined',
+      params: json.params ?? null,
+    };
     return mesh;
   }
   const group = new THREE.Group();
