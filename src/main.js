@@ -9,6 +9,7 @@ import {
   createControls,
   createTransformControls,
   handleResize,
+  applyEnvironment,
 } from './scene.js';
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
@@ -24,6 +25,7 @@ const scene = createScene();
 const camera = createCamera(container);
 createLights(scene);
 createGround(scene);
+applyEnvironment(renderer, scene);
 const controls = createControls(camera, renderer.domElement);
 const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
@@ -43,6 +45,7 @@ let scaleBefore = null;
 let colorBefore = null;
 let gizmoBefore = null;
 let resizeGesture = null;
+let nudgeGesture = null;
 
 let saveTimer = null;
 
@@ -99,6 +102,11 @@ const interaction = createInteraction({
   onDuplicate: duplicateSelected,
   onGroup: groupSelected,
   onUngroup: ungroupSelected,
+  onSelectAll: selectAll,
+  onNudge,
+  onNudgeEnd,
+  onToggleHoleKey: toggleHoleShortcut,
+  onFocus: focusSelected,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -534,6 +542,68 @@ function onNew() {
   history.clear();
   updateHistoryUI();
   saveProject([]);
+}
+
+// ---- polish helpers ----------------------------------------------------------
+
+function selectAll() {
+  interaction.setSelected([...state.shapes]);
+}
+
+function onNudge(dx, dz) {
+  const objects = [...state.selected];
+  if (!objects.length) return;
+  if (!nudgeGesture) {
+    nudgeGesture = new Map(objects.map((o) => [o, captureTransform(o)]));
+  }
+  objects.forEach((o) => {
+    o.position.x += dx;
+    o.position.z += dz;
+  });
+  scheduleSave();
+}
+
+function onNudgeEnd() {
+  if (!nudgeGesture) return;
+  const entries = [...nudgeGesture.entries()];
+  nudgeGesture = null;
+
+  const changed = entries.some(([o, before]) => !transformsEqual(before, captureTransform(o)));
+  if (!changed) return;
+
+  const objects = entries.map(([o]) => o);
+  const before = entries.map(([, b]) => b);
+  const after = entries.map(([o]) => captureTransform(o));
+  history.push({
+    undo: () => objects.forEach((o, i) => applyTransform(o, before[i])),
+    redo: () => objects.forEach((o, i) => applyTransform(o, after[i])),
+  });
+  updateHistoryUI();
+}
+
+function toggleHoleShortcut() {
+  const meshes = state.selected.flatMap(getMeshes);
+  if (!meshes.length) return;
+  onToggleHole(meshes[0].userData.solid); // flip to opposite of the primary shape
+}
+
+function focusSelected() {
+  if (!state.selected.length) return;
+  const box = new THREE.Box3();
+  state.selected.forEach((o) => {
+    o.updateWorldMatrix(true, false);
+    getMeshes(o).forEach((m) => box.expandByObject(m));
+  });
+  if (box.isEmpty()) return;
+
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = box.getBoundingSphere(new THREE.Sphere()).radius;
+  const direction = camera.position.clone().sub(controls.target).normalize();
+  const distance = Math.max(radius * 3, 4);
+
+  controls.target.copy(center);
+  camera.position.copy(center).addScaledVector(direction, distance);
+  controls.update();
 }
 
 // ---- export / reset / snap --------------------------------------------------

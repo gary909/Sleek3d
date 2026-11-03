@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 const HIGHLIGHT_HEX = 0x555555;
+const HOVER_HEX = 0x333333;
 const CLICK_THRESHOLD_PX = 6;
 
 export function createInteraction({
@@ -15,12 +16,18 @@ export function createInteraction({
   onDuplicate,
   onGroup,
   onUngroup,
+  onSelectAll,
+  onNudge,
+  onNudgeEnd,
+  onToggleHoleKey,
+  onFocus,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
 
   let downX = 0;
   let downY = 0;
+  let hovered = null;
 
   function updatePointer(event) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -53,10 +60,20 @@ export function createInteraction({
   function applyHighlight() {
     state.shapes.forEach((object) => {
       const selected = state.selected.includes(object);
+      const isHovered = hovered === object;
+      const level = selected ? HIGHLIGHT_HEX : isHovered ? HOVER_HEX : 0x000000;
       getMeshes(object).forEach((m) => {
-        m.material.emissive.setHex(selected ? HIGHLIGHT_HEX : 0x000000);
+        m.material.emissive.setHex(level);
       });
     });
+  }
+
+  function onPointerMove(event) {
+    const object = pick(event);
+    if (object !== hovered) {
+      hovered = object;
+      applyHighlight();
+    }
   }
 
   function setSelected(meshes) {
@@ -128,6 +145,11 @@ export function createInteraction({
       else onGroup?.();
       return;
     }
+    if (mod && (event.key === 'a' || event.key === 'A')) {
+      event.preventDefault();
+      onSelectAll?.();
+      return;
+    }
 
     if (event.key === 'Escape') setSelected([]);
     if (event.key === 'Delete' || event.key === 'Backspace') {
@@ -136,11 +158,29 @@ export function createInteraction({
     if (event.key === 'w' || event.key === 'W') onSetMode?.('translate');
     if (event.key === 'e' || event.key === 'E') onSetMode?.('rotate');
     if (event.key === 'r' || event.key === 'R') onSetMode?.('scale');
+    if (event.key === 'h' || event.key === 'H') onToggleHoleKey?.();
+    if (event.key === 'f' || event.key === 'F') onFocus?.();
+    if (event.key === 'ArrowLeft') { event.preventDefault(); onNudge?.(-state.snap, 0); }
+    if (event.key === 'ArrowRight') { event.preventDefault(); onNudge?.(state.snap, 0); }
+    if (event.key === 'ArrowUp') { event.preventDefault(); onNudge?.(0, -state.snap); }
+    if (event.key === 'ArrowDown') { event.preventDefault(); onNudge?.(0, state.snap); }
+  }
+
+  function onKeyUp(event) {
+    if (event.key.startsWith('Arrow')) onNudgeEnd?.();
   }
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
+  renderer.domElement.addEventListener('pointermove', onPointerMove);
+  renderer.domElement.addEventListener('pointerleave', () => {
+    if (hovered !== null) {
+      hovered = null;
+      applyHighlight();
+    }
+  });
   window.addEventListener('pointerup', onPointerUp);
   window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
 
   return {
     setSelected,

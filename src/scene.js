@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export function createRenderer(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -8,6 +9,8 @@ export function createRenderer(container) {
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
   container.appendChild(renderer.domElement);
   return renderer;
 }
@@ -61,11 +64,23 @@ export function createGround(scene) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  const grid = new THREE.GridHelper(40, 40, 0x9aa4b2, 0xd7dde5);
-  grid.position.y = 0.005;
-  scene.add(grid);
+  // Minor grid lines (every 1 unit) + darker major lines (every 5 units).
+  const minor = new THREE.GridHelper(40, 40, 0xc9d3de, 0xdfe6ee);
+  minor.position.y = 0.004;
+  scene.add(minor);
 
-  return { ground, grid };
+  const major = new THREE.GridHelper(40, 8, 0x8f9cb0, 0xa8b4c4);
+  major.position.y = 0.006;
+  scene.add(major);
+
+  return { ground, minor, major };
+}
+
+// Studio-style image-based lighting so standard materials get nice reflections.
+export function applyEnvironment(renderer, scene) {
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
 }
 
 export function createControls(camera, domElement) {

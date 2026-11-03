@@ -32,6 +32,10 @@ npm run preview
 | Undo / redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (or buttons) |
 | Duplicate | Ctrl/Cmd+D (or button) |
 | Group / ungroup | Ctrl/Cmd+G / Ctrl/Cmd+Shift+G (or buttons) |
+| Select all | Ctrl/Cmd+A |
+| Frame selection | F |
+| Toggle hole | H |
+| Nudge selection | Arrow keys |
 | Rotate the view | Right-drag |
 | Pan | Middle-drag |
 | Zoom | Scroll |
@@ -42,6 +46,7 @@ npm run preview
 
 - **Primitives** — box, cylinder, sphere, cone, torus, wedge, pyramid, hemisphere, prism, star (all drop in resting on the grid).
 - **Editable dimensions** — select a shape to tweak its width/height/radius/points in the inspector.
+- **Polish** — hover highlighting, image-based studio lighting + filmic tone mapping, and a major/minor grid.
 - **Transform gizmos** — draggable move / rotate / scale handles. Translation snaps to the grid (0.5 / 1 / 2 units), rotation snaps to 15°, and the Y handle lifts shapes vertically.
 - **Select** — click to select, shift-click to multi-select.
 - **Inspector** — uniform scale, color, solid/hole toggle, delete.
