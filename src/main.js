@@ -11,10 +11,11 @@ import {
   handleResize,
 } from './scene.js';
 import { SHAPE_FACTORIES } from './shapes.js';
-import { booleanOperation } from './booleans.js';
+import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createInteraction } from './interaction.js';
 import { createUI } from './ui.js';
 import { createHistory } from './history.js';
+import { saveProject, loadProject } from './save.js';
 
 const container = document.getElementById('app');
 
@@ -42,6 +43,22 @@ let scaleBefore = null;
 let colorBefore = null;
 let gizmoBefore = null;
 
+let saveTimer = null;
+
+function getMeshes(object) {
+  if (object.isMesh) return [object];
+  const meshes = [];
+  object.traverse((o) => {
+    if (o.isMesh) meshes.push(o);
+  });
+  return meshes;
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveProject(state.shapes), 300);
+}
+
 const ui = createUI({
   state,
   onAdd: addShape,
@@ -58,6 +75,10 @@ const ui = createUI({
   onSetMode,
   onUndo: performUndo,
   onRedo: performRedo,
+  onDuplicate: duplicateSelected,
+  onGroup: groupSelected,
+  onUngroup: ungroupSelected,
+  onNew,
 });
 
 const interaction = createInteraction({
@@ -72,6 +93,9 @@ const interaction = createInteraction({
   onSetMode,
   onUndo: performUndo,
   onRedo: performRedo,
+  onDuplicate: duplicateSelected,
+  onGroup: groupSelected,
+  onUngroup: ungroupSelected,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -94,6 +118,7 @@ transformControls.addEventListener('mouseUp', () => {
     if (!transformsEqual(gizmoBefore, after)) {
       history.push(commandTransform(obj, gizmoBefore, after));
       updateHistoryUI();
+      scheduleSave();
     }
   }
   gizmoBefore = null;
@@ -108,14 +133,17 @@ function addShape(type) {
   interaction.setSelected([mesh]);
   history.push(commandAdd(mesh));
   updateHistoryUI();
+  scheduleSave();
 }
 
-function removeShape(mesh) {
-  if (transformControls.object === mesh) transformControls.detach();
-  scene.remove(mesh);
-  state.shapes = state.shapes.filter((m) => m !== mesh);
-  mesh.geometry.dispose();
-  mesh.material.dispose();
+function removeShape(object) {
+  if (transformControls.object === object) transformControls.detach();
+  scene.remove(object);
+  state.shapes = state.shapes.filter((o) => o !== object);
+  getMeshes(object).forEach((m) => {
+    m.geometry.dispose();
+    m.material.dispose();
+  });
 }
 
 function setHole(mesh, isHole) {
@@ -252,6 +280,44 @@ function commandHole(meshes, beforeIsHole, afterIsHole) {
   };
 }
 
+function commandGroup(objects, group) {
+  return {
+    undo: () => {
+      objects.forEach((o) => scene.attach(o));
+      scene.remove(group);
+      state.shapes = state.shapes.filter((o) => o !== group);
+      state.shapes.push(...objects);
+    },
+    redo: () => {
+      state.shapes = state.shapes.filter((o) => !objects.includes(o));
+      scene.add(group);
+      objects.forEach((o) => group.attach(o));
+      state.shapes.push(group);
+    },
+  };
+}
+
+function commandUngroup(entries) {
+  return {
+    undo: () => {
+      entries.forEach(({ group, children }) => {
+        state.shapes = state.shapes.filter((o) => !children.includes(o));
+        scene.add(group);
+        children.forEach((c) => group.attach(c));
+        state.shapes.push(group);
+      });
+    },
+    redo: () => {
+      entries.forEach(({ group, children }) => {
+        children.forEach((c) => scene.attach(c));
+        scene.remove(group);
+        state.shapes = state.shapes.filter((o) => o !== group);
+        state.shapes.push(...children);
+      });
+    },
+  };
+}
+
 function updateHistoryUI() {
   ui.setHistoryState(history.canUndo(), history.canRedo());
 }
@@ -289,15 +355,17 @@ function onScaleCommit() {
   if (meshes.some((m, i) => !before[i].equals(after[i]))) {
     history.push(commandScale(meshes, before, after));
     updateHistoryUI();
+    scheduleSave();
   }
 }
 
 function onColor(hex) {
   const value = new THREE.Color(hex).getHex();
+  const meshes = state.selected.flatMap(getMeshes);
   if (!colorBefore) {
-    colorBefore = new Map(state.selected.map((m) => [m, m.material.color.getHex()]));
+    colorBefore = new Map(meshes.map((m) => [m, m.material.color.getHex()]));
   }
-  state.selected.forEach((m) => setColor(m, value));
+  meshes.forEach((m) => setColor(m, value));
 }
 
 function onColorCommit() {
@@ -310,40 +378,124 @@ function onColorCommit() {
   if (meshes.some((m, i) => before[i] !== after[i])) {
     history.push(commandColor(meshes, before, after));
     updateHistoryUI();
+    scheduleSave();
   }
 }
 
 function onToggleHole(isHole) {
-  const meshes = [...state.selected];
+  const meshes = state.selected.flatMap(getMeshes);
   if (!meshes.length) return;
   const before = meshes.map((m) => !m.userData.solid);
   meshes.forEach((m) => setHole(m, isHole));
   history.push(commandHole(meshes, before, meshes.map(() => isHole)));
   updateHistoryUI();
+  scheduleSave();
 }
 
 function onDelete() {
-  const meshes = [...state.selected];
-  if (!meshes.length) return;
-  meshes.forEach(removeShape);
+  const objects = [...state.selected];
+  if (!objects.length) return;
+  objects.forEach(removeShape);
   interaction.setSelected([]);
-  history.push(commandDelete(meshes));
+  history.push(commandDelete(objects));
   updateHistoryUI();
+  scheduleSave();
 }
 
 // ---- booleans ---------------------------------------------------------------
 
 function onBoolean(op) {
   if (state.selected.length !== 2) return;
-  const [a, b] = state.selected;
+  const [aOrig, bOrig] = state.selected;
+
+  let a = aOrig;
+  let b = bOrig;
+  if (!a.isMesh) a = combineGroupToMesh(a);
+  if (!b.isMesh) b = combineGroupToMesh(b);
+  if (!a || !b) return;
+
   const result = booleanOperation(a, b, op);
-  removeShape(a);
-  removeShape(b);
+
+  // Free temporary flattened meshes (their geometry is now baked into `result`).
+  if (a !== aOrig) {
+    a.geometry.dispose();
+    a.material.dispose();
+  }
+  if (b !== bOrig) {
+    b.geometry.dispose();
+    b.material.dispose();
+  }
+
+  removeShape(aOrig);
+  removeShape(bOrig);
   scene.add(result);
   state.shapes.push(result);
   interaction.setSelected([result]);
-  history.push(commandBoolean(a, b, result));
+  history.push(commandBoolean(aOrig, bOrig, result));
   updateHistoryUI();
+  scheduleSave();
+}
+
+// ---- duplicate / group / new -------------------------------------------------
+
+function duplicateSelected() {
+  const objects = [...state.selected];
+  if (!objects.length) return;
+  const clones = objects.map((o) => {
+    const c = o.clone(true);
+    c.position.x += state.snap;
+    c.position.z += state.snap;
+    return c;
+  });
+  clones.forEach((c) => {
+    scene.add(c);
+    state.shapes.push(c);
+  });
+  interaction.setSelected(clones);
+  history.push(commandDelete(clones));
+  updateHistoryUI();
+  scheduleSave();
+}
+
+function groupSelected() {
+  const objects = [...state.selected];
+  if (objects.length < 2) return;
+  const group = new THREE.Group();
+  scene.add(group);
+  objects.forEach((o) => group.attach(o));
+  state.shapes = state.shapes.filter((o) => !objects.includes(o));
+  state.shapes.push(group);
+  interaction.setSelected([group]);
+  history.push(commandGroup(objects, group));
+  updateHistoryUI();
+  scheduleSave();
+}
+
+function ungroupSelected() {
+  const groups = state.selected.filter((o) => o.isGroup);
+  if (!groups.length) return;
+  const entries = groups.map((group) => ({ group, children: [...group.children] }));
+  const restored = entries.flatMap((e) => e.children);
+
+  entries.forEach(({ group, children }) => {
+    children.forEach((c) => scene.attach(c));
+    scene.remove(group);
+    state.shapes = state.shapes.filter((o) => o !== group);
+  });
+  state.shapes.push(...restored);
+
+  interaction.setSelected(restored);
+  history.push(commandUngroup(entries));
+  updateHistoryUI();
+  scheduleSave();
+}
+
+function onNew() {
+  [...state.shapes].forEach(removeShape);
+  interaction.setSelected([]);
+  history.clear();
+  updateHistoryUI();
+  saveProject([]);
 }
 
 // ---- export / reset / snap --------------------------------------------------
@@ -351,7 +503,7 @@ function onBoolean(op) {
 function onExport() {
   const exporter = new STLExporter();
   const group = new THREE.Group();
-  state.shapes.forEach((m) => group.add(m.clone()));
+  state.shapes.forEach((o) => group.add(o.clone(true)));
   group.updateMatrixWorld(true);
   const data = exporter.parse(group);
   download('sleek3d-model.stl', data);
@@ -363,6 +515,7 @@ function onReset() {
   interaction.setSelected([]);
   history.clear();
   updateHistoryUI();
+  scheduleSave();
 }
 
 function onSnap(value) {
@@ -412,7 +565,18 @@ function seedDemo() {
 
 // ---- boot -------------------------------------------------------------------
 
-seedDemo();
+const loaded = loadProject();
+if (loaded) {
+  loaded.forEach((obj) => {
+    scene.add(obj);
+    state.shapes.push(obj);
+    getMeshes(obj).forEach((m) => {
+      if (!m.userData.solid) setHole(m, true);
+    });
+  });
+} else {
+  seedDemo();
+}
 ui.refresh();
 updateHistoryUI();
 

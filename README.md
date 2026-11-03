@@ -30,6 +30,8 @@ npm run preview
 | Move / rotate / scale a shape | Drag the gizmo handles |
 | Switch tool | W / E / R keys or panel buttons |
 | Undo / redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (or buttons) |
+| Duplicate | Ctrl/Cmd+D (or button) |
+| Group / ungroup | Ctrl/Cmd+G / Ctrl/Cmd+Shift+G (or buttons) |
 | Rotate the view | Right-drag |
 | Pan | Middle-drag |
 | Zoom | Scroll |
@@ -43,6 +45,8 @@ npm run preview
 - **Select** — click to select, shift-click to multi-select.
 - **Inspector** — uniform scale, color, solid/hole toggle, delete.
 - **Undo / redo** — full history (add, delete, booleans, transforms, color, hole, scale) via Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z or the panel buttons.
+- **Duplicate / group** — Ctrl/Cmd+D duplicates; group multiple shapes (Ctrl/Cmd+G) and ungroup (Ctrl/Cmd+Shift+G). Booleans can also combine whole groups.
+- **Save / load** — your work auto-saves to the browser and restores on reload; use "New" to start empty.
 - **Booleans** — select two shapes (shift-click) then Union, Subtract, or Intersect.
   - *Subtract* cuts the second shape out of the first.
   - Mark a shape as a **Hole** (rendered translucent red) to use it as a cutter.
@@ -60,6 +64,7 @@ src/
   interaction.js  selection + keyboard shortcuts
   ui.js           toolbar/panel wiring + STL export
   history.js      undo/redo stack
+  save.js         scene serialization + localStorage persistence
 ```
 
 ## How it works
@@ -73,6 +78,5 @@ complex geometry) only requires editing that one file.
 
 ## Roadmap (not yet implemented)
 
-- Grouping, alignment, duplication
+- Alignment tools (align centers / edges)
 - More primitives and parametric shape generators
-- Multiple groups / "group selected" like Tinkercad

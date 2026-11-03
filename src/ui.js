@@ -14,6 +14,10 @@ export function createUI({
   onSetMode,
   onUndo,
   onRedo,
+  onDuplicate,
+  onGroup,
+  onUngroup,
+  onNew,
 }) {
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorBody = document.getElementById('inspector-body');
@@ -28,6 +32,10 @@ export function createUI({
   const modeBtns = Array.from(document.querySelectorAll('#inspector [data-mode]'));
   const undoBtn = document.getElementById('undo');
   const redoBtn = document.getElementById('redo');
+  const duplicateBtn = document.getElementById('duplicate');
+  const groupBtn = document.getElementById('group');
+  const ungroupBtn = document.getElementById('ungroup');
+  const newBtn = document.getElementById('new');
 
   document.querySelectorAll('#toolbar .shape').forEach((btn) => {
     btn.addEventListener('click', () => onAdd(btn.dataset.shape));
@@ -46,6 +54,10 @@ export function createUI({
 
   undoBtn.addEventListener('click', onUndo);
   redoBtn.addEventListener('click', onRedo);
+  duplicateBtn.addEventListener('click', onDuplicate);
+  groupBtn.addEventListener('click', onGroup);
+  ungroupBtn.addEventListener('click', onUngroup);
+  newBtn.addEventListener('click', onNew);
 
   unionBtn.addEventListener('click', () => onBoolean('union'));
   subtractBtn.addEventListener('click', () => onBoolean('subtract'));
@@ -54,6 +66,15 @@ export function createUI({
   document.getElementById('export').addEventListener('click', onExport);
   document.getElementById('reset').addEventListener('click', onReset);
   snapSelect.addEventListener('change', () => onSnap(Number(snapSelect.value)));
+
+  function firstMesh(object) {
+    if (object.isMesh) return object;
+    let found = null;
+    object.traverse((o) => {
+      if (!found && o.isMesh) found = o;
+    });
+    return found;
+  }
 
   function refresh() {
     const sel = state.selected;
@@ -70,9 +91,10 @@ export function createUI({
     deleteBtn.disabled = !hasSelection;
 
     if (primary) {
+      const mesh = firstMesh(primary);
       scaleInput.value = String(primary.scale.x);
-      colorInput.value = '#' + primary.material.color.getHexString();
-      holeInput.checked = !primary.userData.solid;
+      colorInput.value = '#' + (mesh ? mesh.material.color.getHexString() : '4a90d9');
+      holeInput.checked = mesh ? !mesh.userData.solid : false;
     }
   }
 

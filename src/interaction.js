@@ -12,6 +12,9 @@ export function createInteraction({
   onSetMode,
   onUndo,
   onRedo,
+  onDuplicate,
+  onGroup,
+  onUngroup,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -26,15 +29,33 @@ export function createInteraction({
     raycaster.setFromCamera(pointer, camera);
   }
 
+  function getMeshes(object) {
+    if (object.isMesh) return [object];
+    const meshes = [];
+    object.traverse((o) => {
+      if (o.isMesh) meshes.push(o);
+    });
+    return meshes;
+  }
+
+  function topLevelOf(node) {
+    let current = node;
+    while (current && !state.shapes.includes(current)) current = current.parent;
+    return current;
+  }
+
   function pick(event) {
     updatePointer(event);
-    const hits = raycaster.intersectObjects(state.shapes, false);
-    return hits.length ? hits[0].object : null;
+    const hits = raycaster.intersectObjects(state.shapes, true);
+    return hits.length ? topLevelOf(hits[0].object) : null;
   }
 
   function applyHighlight() {
-    state.shapes.forEach((mesh) => {
-      mesh.material.emissive.setHex(state.selected.includes(mesh) ? HIGHLIGHT_HEX : 0x000000);
+    state.shapes.forEach((object) => {
+      const selected = state.selected.includes(object);
+      getMeshes(object).forEach((m) => {
+        m.material.emissive.setHex(selected ? HIGHLIGHT_HEX : 0x000000);
+      });
     });
   }
 
@@ -94,6 +115,17 @@ export function createInteraction({
     if (mod && (event.key === 'y' || event.key === 'Y')) {
       event.preventDefault();
       onRedo?.();
+      return;
+    }
+    if (mod && (event.key === 'd' || event.key === 'D')) {
+      event.preventDefault();
+      onDuplicate?.();
+      return;
+    }
+    if (mod && (event.key === 'g' || event.key === 'G')) {
+      event.preventDefault();
+      if (event.shiftKey) onUngroup?.();
+      else onGroup?.();
       return;
     }
 

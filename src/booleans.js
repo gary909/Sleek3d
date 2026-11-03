@@ -60,6 +60,32 @@ function extractDrawnTriangles(geometry) {
   return clean;
 }
 
+// Re-center a (world-space) geometry so its pivot matches its visual center, and
+// wrap it in a fresh material + mesh. Keeps dragging/rotation intuitive after baking.
+function finalizeGeometry(geometry, colorHex) {
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+
+  const center = geometry.boundingBox.getCenter(new THREE.Vector3());
+  geometry.translate(-center.x, -center.y, -center.z);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+
+  const material = new THREE.MeshStandardMaterial({
+    color: colorHex,
+    roughness: 0.55,
+    metalness: 0.05,
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.copy(center);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.userData = { solid: true, shapeType: 'combined' };
+
+  return mesh;
+}
+
 export function booleanOperation(meshA, meshB, operation = 'union') {
   const op = OPERATIONS[operation] ?? ADDITION;
 
@@ -74,28 +100,40 @@ export function booleanOperation(meshA, meshB, operation = 'union') {
   brushA.geometry.dispose();
   brushB.geometry.dispose();
 
-  geometry.computeVertexNormals();
-  geometry.computeBoundingBox();
+  return finalizeGeometry(geometry, meshA.material.color.getHex());
+}
 
-  // Re-center so the mesh's pivot matches its visual center. This keeps dragging
-  // and rotation intuitive after combining (the geometry is otherwise baked in
-  // world space with the pivot at the origin).
-  const center = geometry.boundingBox.getCenter(new THREE.Vector3());
-  geometry.translate(-center.x, -center.y, -center.z);
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
+// Bake a single mesh's world transform into a fresh, re-centered mesh (no CSG).
+export function bakeMesh(mesh) {
+  mesh.updateMatrixWorld(true);
+  const geometry = mesh.geometry.clone();
+  geometry.applyMatrix4(mesh.matrixWorld);
+  return finalizeGeometry(geometry, mesh.material.color.getHex());
+}
 
-  const material = new THREE.MeshStandardMaterial({
-    color: meshA.material.color.clone(),
-    roughness: 0.55,
-    metalness: 0.05,
+// Flatten a group into a single mesh: union its solids, subtract its holes.
+export function combineGroupToMesh(group) {
+  const meshes = [];
+  group.traverse((o) => {
+    if (o.isMesh) meshes.push(o);
   });
 
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.copy(center);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.userData = { solid: true, shapeType: 'combined' };
+  const solids = meshes.filter((m) => m.userData.solid !== false);
+  const holes = meshes.filter((m) => m.userData.solid === false);
+  if (!solids.length) return null;
 
-  return mesh;
+  let result = bakeMesh(solids[0]);
+  for (let i = 1; i < solids.length; i++) {
+    const next = booleanOperation(result, solids[i], 'union');
+    result.geometry.dispose();
+    result.material.dispose();
+    result = next;
+  }
+  for (const hole of holes) {
+    const next = booleanOperation(result, hole, 'subtract');
+    result.geometry.dispose();
+    result.material.dispose();
+    result = next;
+  }
+  return result;
 }
