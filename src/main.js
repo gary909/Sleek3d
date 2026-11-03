@@ -86,7 +86,7 @@ const ui = createUI({
   onNew,
   onParamChange,
   onParamCommit,
-  onAlign,
+  onAlign: alignSelection,
 });
 
 const interaction = createInteraction({
