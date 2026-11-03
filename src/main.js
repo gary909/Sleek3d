@@ -737,7 +737,7 @@ function seedDemo() {
 // ---- boot -------------------------------------------------------------------
 
 const loaded = loadProject();
-if (loaded) {
+if (loaded && loaded.length) {
   loaded.forEach((obj) => {
     scene.add(obj);
     state.shapes.push(obj);

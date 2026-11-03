@@ -78,9 +78,15 @@ export function createGround(scene) {
 
 // Studio-style image-based lighting so standard materials get nice reflections.
 export function applyEnvironment(renderer, scene) {
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  pmrem.dispose();
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+  } catch (error) {
+    // Environment generation can fail on some GPUs; fall back to the plain lights
+    // so shapes still render.
+    console.warn('Environment lighting unavailable:', error);
+  }
 }
 
 export function createControls(camera, domElement) {
