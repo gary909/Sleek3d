@@ -64,6 +64,15 @@ function extractDrawnTriangles(geometry) {
 // wrap it in a fresh material + mesh. Keeps dragging/rotation intuitive after baking.
 function finalizeGeometry(geometry, colorHex) {
   geometry.computeVertexNormals();
+
+  // The CSG evaluator requires `position`, `uv` and `normal` on every brush.
+  // We don't use textures, so add a placeholder `uv` so boolean results can be
+  // chained (i.e. combined more than once) without an attribute mismatch.
+  if (!geometry.attributes.uv) {
+    const uv = new Float32Array(geometry.attributes.position.count * 2);
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  }
+
   geometry.computeBoundingBox();
 
   const center = geometry.boundingBox.getCenter(new THREE.Vector3());
