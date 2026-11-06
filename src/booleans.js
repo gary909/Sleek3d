@@ -15,12 +15,24 @@ const OPERATIONS = {
   intersect: INTERSECTION,
 };
 
+// The CSG evaluator requires `position`, `uv` and `normal` on every brush.
+// Loaded/legacy geometry may lack them (save/load doesn't persist `uv`), so
+// normalise before evaluation to avoid attribute mismatches.
+function ensureCSGAttributes(geometry) {
+  if (!geometry.attributes.normal) geometry.computeVertexNormals();
+  if (!geometry.attributes.uv) {
+    const uv = new Float32Array(geometry.attributes.position.count * 2);
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  }
+}
+
 // Bake a mesh's world transform into a fresh geometry, then wrap it in a Brush.
 // The input geometry is cloned so the original mesh (still in the scene) is untouched.
 function toBrush(mesh) {
   mesh.updateMatrixWorld(true);
   const geometry = mesh.geometry.clone();
   geometry.applyMatrix4(mesh.matrixWorld);
+  ensureCSGAttributes(geometry);
   const brush = new Brush(geometry);
   brush.updateMatrixWorld(true);
   return brush;
