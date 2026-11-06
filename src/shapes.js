@@ -136,10 +136,21 @@ export const SHAPE_FACTORIES = Object.fromEntries(
 export function rebuildShapeGeometry(mesh, params) {
   const def = SHAPE_DEFS[mesh.userData.shapeType];
   if (!def) return false;
+
+  // Compute the old grounded height so we can preserve any manual lift when the
+  // dimensions change (a raised shape stays raised instead of snapping back down).
+  const oldParams = mesh.userData.params ?? {};
+  const oldProbe = def.factory({ ...oldParams });
+  const oldGroundY = oldProbe.position.y;
+  oldProbe.geometry.dispose();
+  oldProbe.material.dispose();
+
+  const lift = mesh.position.y - oldGroundY;
+
   const fresh = def.factory({ ...params });
   mesh.geometry.dispose();
   mesh.geometry = fresh.geometry;
-  mesh.position.y = fresh.position.y;
+  mesh.position.y = fresh.position.y + lift;
   mesh.userData.params = { ...params };
   fresh.material.dispose();
   return true;

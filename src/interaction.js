@@ -28,6 +28,7 @@ export function createInteraction({
   let downX = 0;
   let downY = 0;
   let hovered = null;
+  let pointerDownOnCanvas = false;
 
   function updatePointer(event) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -101,13 +102,16 @@ export function createInteraction({
   // Selection happens on pointer *up*, and only if the pointer barely moved (a real
   // click). This way dragging a gizmo handle or orbiting never changes the selection.
   function onPointerDown(event) {
-    if (event.button !== 0) return;
+    pointerDownOnCanvas = event.button === 0;
+    if (!pointerDownOnCanvas) return;
     downX = event.clientX;
     downY = event.clientY;
   }
 
   function onPointerUp(event) {
     if (event.button !== 0) return;
+    if (!pointerDownOnCanvas) return;
+    pointerDownOnCanvas = false;
     if (Math.hypot(event.clientX - downX, event.clientY - downY) > CLICK_THRESHOLD_PX) {
       return;
     }
