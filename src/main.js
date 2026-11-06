@@ -27,6 +27,21 @@ const camera = createCamera(container);
 createLights(scene);
 createGround(scene);
 applyEnvironment(renderer, scene);
+
+// Measurement label: a billboard sprite attached above the selected object.
+const measureCanvas = document.createElement('canvas');
+measureCanvas.width = 1024;
+measureCanvas.height = 150;
+const measureCtx = measureCanvas.getContext('2d');
+const measureTexture = new THREE.CanvasTexture(measureCanvas);
+measureTexture.minFilter = THREE.LinearFilter;
+const measureSprite = new THREE.Sprite(
+  new THREE.SpriteMaterial({ map: measureTexture, transparent: true, depthTest: false, depthWrite: false })
+);
+measureSprite.renderOrder = 999;
+measureSprite.visible = false;
+scene.add(measureSprite);
+
 const controls = createControls(camera, renderer.domElement);
 const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
@@ -96,6 +111,7 @@ const interaction = createInteraction({
   onSelectionChange: () => {
     ui.refresh();
     syncGizmo();
+    updateMeasure();
   },
   onDelete,
   onSetMode,
@@ -117,6 +133,7 @@ transformControls.addEventListener('dragging-changed', (event) => {
 
 transformControls.addEventListener('objectChange', () => {
   ui.refresh();
+  updateMeasure();
 });
 
 transformControls.addEventListener('mouseDown', () => {
@@ -382,6 +399,7 @@ function onScale(value) {
     scaleBefore = new Map(state.selected.map((m) => [m, m.scale.clone()]));
   }
   state.selected.forEach((m) => m.scale.setScalar(value));
+  updateMeasure();
 }
 
 function onScaleCommit() {
@@ -433,6 +451,7 @@ function onParamChange(params) {
     resizeGesture = { mesh, beforeParams: { ...mesh.userData.params } };
   }
   rebuildShapeGeometry(mesh, params);
+  updateMeasure();
   scheduleSave();
 }
 
@@ -632,6 +651,79 @@ function objectBox(object) {
   const box = new THREE.Box3();
   getMeshes(object).forEach((m) => box.expandByObject(m));
   return box;
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Live measurement label, attached above the selected object (billboard sprite).
+function updateMeasure() {
+  const object = state.selected[0];
+  if (!object) {
+    measureSprite.visible = false;
+    return;
+  }
+  const box = objectBox(object);
+  if (box.isEmpty()) {
+    measureSprite.visible = false;
+    return;
+  }
+
+  const size = box.getSize(new THREE.Vector3());
+  const pos = object.position;
+
+  // Right-align all values to a shared width + fixed separator so the W/D/H
+  // columns line up over X/Y/Z (needs a monospace font).
+  const allValues = [size.x, size.z, size.y, pos.x, pos.y, pos.z].map((v) => v.toFixed(2));
+  const maxLen = Math.max(...allValues.map((s) => s.length));
+  const fmt = (v) => v.toFixed(2).padStart(maxLen, ' ');
+  const sep = '  ·  ';
+  const sizeText = `W ${fmt(size.x)}${sep}D ${fmt(size.z)}${sep}H ${fmt(size.y)}`;
+  const posText = `X ${fmt(pos.x)}${sep}Y ${fmt(pos.y)}${sep}Z ${fmt(pos.z)}`;
+
+  const font = 'bold 44px ui-monospace, Menlo, Consolas, monospace';
+  measureCtx.font = font;
+  const textWidth = Math.max(
+    measureCtx.measureText(sizeText).width,
+    measureCtx.measureText(posText).width
+  );
+
+  // Size the canvas tightly around the text.
+  const padX = 44;
+  const h = 164;
+  const w = Math.max(220, Math.ceil(textWidth + padX * 2));
+
+  measureCanvas.width = w;
+  measureCanvas.height = h;
+
+  measureCtx.font = font;
+  measureCtx.textAlign = 'center';
+  measureCtx.textBaseline = 'middle';
+  measureCtx.clearRect(0, 0, w, h);
+  measureCtx.fillStyle = 'rgba(20, 24, 28, 0.88)';
+  roundedRect(measureCtx, 4, 4, w - 8, h - 8, 28);
+  measureCtx.fill();
+  measureCtx.fillStyle = '#ffffff';
+  measureCtx.fillText(sizeText, w / 2, 54);
+  measureCtx.fillText(posText, w / 2, 114);
+  measureTexture.needsUpdate = true;
+
+  const center = box.getCenter(new THREE.Vector3());
+  measureSprite.position.set(center.x, box.max.y + 0.8, center.z);
+  const worldHeight = 0.7;
+  measureSprite.scale.set(worldHeight * (w / h), worldHeight, 1);
+  measureSprite.visible = true;
 }
 
 function alignSelection(axis, mode) {
