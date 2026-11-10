@@ -7,6 +7,13 @@ Add transparency/solid toggle
 Add darker border to grid outline
 Add shape icons to shape text
 option for reference image?
+Zoom In/Out buttons
+Toggle to orthographic view (flat view)
+initial view reset button
+add 3d cube, drag to rotate view
+ruler overlay
+improve grid...  1cm as 1mm squares etc
+front panel designer mode?
 Option to add textures to objects? Could have this as a separate page/software?
 remove 'tool' text from header and have move, rotate and scale sit on one line
 radius/height options...  make as slider, with size mm/cm present 
