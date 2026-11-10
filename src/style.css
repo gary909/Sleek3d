@@ -199,18 +199,6 @@ section:first-child {
   font-size: 12px;
 }
 
-#output label {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-#output select,
-#output button {
-  display: block;
-  width: 100%;
-  margin: 6px 0;
-}
-
 #help {
   position: fixed;
   bottom: 12px;
@@ -230,6 +218,7 @@ section:first-child {
   bottom: 12px;
   left: 16px;
   display: flex;
+  align-items: center;
   gap: 8px;
   z-index: 20;
 }
@@ -256,6 +245,34 @@ section:first-child {
 #help-btn.active {
   background: #e5e7eb;
   color: #111827;
+}
+
+#snap-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 8px 0 10px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+#snap-wrap span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#snap {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  height: 100%;
 }
 
 #help[hidden] {

@@ -86,15 +86,6 @@
         <div class="align-row"><span>Y</span><button data-align="y,min">Min</button><button data-align="y,center">Center</button><button data-align="y,max">Max</button></div>
         <div class="align-row"><span>Z</span><button data-align="z,min">Min</button><button data-align="z,center">Center</button><button data-align="z,max">Max</button></div>
       </section>
-
-      <section id="output">
-        <h2>Snap</h2>
-        <select id="snap">
-          <option value="0.5">0.5</option>
-          <option value="1" selected>1</option>
-          <option value="2">2</option>
-        </select>
-      </section>
     </aside>
 
     <div id="help" hidden>
@@ -107,6 +98,14 @@
     <div id="corner-buttons">
       <button id="settings-btn" title="Settings">⚙</button>
       <button id="help-btn" title="Show controls">?</button>
+      <label id="snap-wrap" title="Grid snap">
+        <span>Snap</span>
+        <select id="snap">
+          <option value="0.5">0.5</option>
+          <option value="1" selected>1</option>
+          <option value="2">2</option>
+        </select>
+      </label>
     </div>
 
     <div id="settings-modal" hidden>
