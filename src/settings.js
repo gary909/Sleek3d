@@ -46,6 +46,13 @@ export function formatLength(value, settings) {
   return fromMm(value, settings).toFixed(decimals);
 }
 
+export const SNAP_VALUES = [0.1, 0.5, 1, 2];
+
+export function snapLabel(mm, settings) {
+  const text = fromMm(mm, settings).toFixed(4).replace(/\.?0+$/, '');
+  return `${text} ${getUnit(settings)}`;
+}
+
 export function loadSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

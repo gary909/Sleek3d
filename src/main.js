@@ -19,7 +19,7 @@ import { createUI, createSettingsPanel } from './ui.js';
 import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
-import { loadSettings, saveSettings, getUnit, formatLength } from './settings.js';
+import { loadSettings, saveSettings, getUnit, formatLength, SNAP_VALUES, snapLabel } from './settings.js';
 
 const container = document.getElementById('app');
 
@@ -1021,6 +1021,20 @@ function updateSetting(changes) {
   saveSettings(settings);
   updateMeasure();
   updateRuler();
+  renderSnapOptions();
+}
+
+function renderSnapOptions() {
+  const select = document.getElementById('snap');
+  if (!select) return;
+  select.innerHTML = '';
+  SNAP_VALUES.forEach((v) => {
+    const opt = document.createElement('option');
+    opt.value = String(v);
+    opt.textContent = snapLabel(v, settings);
+    select.appendChild(opt);
+  });
+  select.value = String(state.snap);
 }
 
 const loaded = loadProject();
@@ -1035,6 +1049,7 @@ if (loaded && loaded.length) {
 } else {
   seedDemo();
 }
+renderSnapOptions();
 ui.refresh();
 updateHistoryUI();
 ui.setClipboardState(false);
