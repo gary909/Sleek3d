@@ -22,6 +22,8 @@ add 3d cube, drag to rotate view
 
 ruler overlay
 
+import?
+
 improve grid...  1cm as 1mm squares etc
 
 front panel designer mode?
