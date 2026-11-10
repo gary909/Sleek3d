@@ -16,7 +16,7 @@ import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createInteraction } from './interaction.js';
 import { createUI } from './ui.js';
 import { createHistory } from './history.js';
-import { saveProject, loadProject } from './save.js';
+import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
 
 const container = document.getElementById('app');
@@ -101,6 +101,7 @@ let gizmoBefore = null;
 let resizeGesture = null;
 let nudgeGesture = null;
 let moveStart = null;
+let clipboard = null;
 
 let saveTimer = null;
 
@@ -141,6 +142,8 @@ const ui = createUI({
   onParamChange,
   onParamCommit,
   onAlign: alignSelection,
+  onCopy: copySelected,
+  onPaste: pasteClipboard,
 });
 
 const interaction = createInteraction({
@@ -164,6 +167,8 @@ const interaction = createInteraction({
   onNudgeEnd,
   onToggleHoleKey: toggleHoleShortcut,
   onFocus: focusSelected,
+  onCopy: copySelected,
+  onPaste: pasteClipboard,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -590,6 +595,38 @@ function duplicateSelected() {
   scheduleSave();
 }
 
+function copySelected() {
+  if (!state.selected.length) return;
+  clipboard = serializeScene(state.selected);
+  ui.setClipboardState(true);
+}
+
+function pasteClipboard() {
+  if (!clipboard) return;
+  let objects;
+  try {
+    objects = deserializeScene(clipboard);
+  } catch {
+    return;
+  }
+  if (!objects.length) return;
+
+  objects.forEach((o) => {
+    o.position.x += state.snap;
+    o.position.z += state.snap;
+    scene.add(o);
+    state.shapes.push(o);
+    getMeshes(o).forEach((m) => {
+      if (!m.userData.solid) setHole(m, true);
+    });
+  });
+
+  interaction.setSelected(objects);
+  history.push(commandDelete(objects));
+  updateHistoryUI();
+  scheduleSave();
+}
+
 function groupSelected() {
   const objects = [...state.selected];
   if (objects.length < 2) return;
@@ -968,6 +1005,7 @@ if (loaded && loaded.length) {
 }
 ui.refresh();
 updateHistoryUI();
+ui.setClipboardState(false);
 
 function animate() {
   requestAnimationFrame(animate);

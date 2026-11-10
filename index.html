@@ -9,6 +9,26 @@
   <body>
     <div id="app"></div>
 
+    <nav id="topnav">
+      <button id="undo" disabled title="Undo (Ctrl+Z)">Undo</button>
+      <button id="redo" disabled title="Redo (Ctrl+Shift+Z)">Redo</button>
+      <span class="sep"></span>
+      <button id="copy" title="Copy (Ctrl+C)">Copy</button>
+      <button id="paste" disabled title="Paste (Ctrl+V)">Paste</button>
+      <button id="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button>
+      <span class="sep"></span>
+      <button id="group" title="Group (Ctrl+G)">Group</button>
+      <button id="ungroup" title="Ungroup (Ctrl+Shift+G)">Ungroup</button>
+      <span class="sep"></span>
+      <button id="delete" class="danger" title="Delete (Del)" disabled>Delete</button>
+
+      <div class="nav-right">
+        <button id="new" title="New project">New</button>
+        <button id="export" title="Export STL">Export STL</button>
+        <button id="reset" title="Reset demo">Reset demo</button>
+      </div>
+    </nav>
+
     <aside id="toolbar">
       <h2>Add shape</h2>
       <button class="shape" data-shape="box">Box</button>
@@ -25,15 +45,6 @@
     </aside>
 
     <aside id="panel">
-      <section id="edit">
-        <h2>Edit</h2>
-        <button id="undo" disabled>Undo</button>
-        <button id="redo" disabled>Redo</button>
-        <button id="duplicate">Duplicate</button>
-        <button id="group">Group</button>
-        <button id="ungroup">Ungroup</button>
-      </section>
-
       <section id="inspector">
         <h2>Inspector</h2>
         <div id="inspector-empty" class="muted">Select a shape to edit it.</div>
@@ -57,9 +68,6 @@
             <label for="hole">Hole</label>
             <input id="hole" type="checkbox" />
           </div>
-          <div class="row">
-            <button id="delete" class="danger">Delete</button>
-          </div>
         </div>
       </section>
 
@@ -80,16 +88,12 @@
       </section>
 
       <section id="output">
-        <h2>Output</h2>
-        <label for="snap">Snap</label>
+        <h2>Snap</h2>
         <select id="snap">
           <option value="0.5">0.5</option>
           <option value="1" selected>1</option>
           <option value="2">2</option>
         </select>
-        <button id="new">New</button>
-        <button id="export">Export STL</button>
-        <button id="reset">Reset demo</button>
       </section>
     </aside>
 

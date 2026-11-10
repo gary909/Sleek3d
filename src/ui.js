@@ -23,6 +23,8 @@ export function createUI({
   onParamChange,
   onParamCommit,
   onAlign,
+  onCopy,
+  onPaste,
 }) {
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorBody = document.getElementById('inspector-body');
@@ -43,6 +45,8 @@ export function createUI({
   const newBtn = document.getElementById('new');
   const dimContainer = document.getElementById('dimensions');
   const alignBtns = Array.from(document.querySelectorAll('#align [data-align]'));
+  const copyBtn = document.getElementById('copy');
+  const pasteBtn = document.getElementById('paste');
 
   document.querySelectorAll('#toolbar .shape').forEach((btn) => {
     btn.addEventListener('click', () => onAdd(btn.dataset.shape));
@@ -65,6 +69,8 @@ export function createUI({
   groupBtn.addEventListener('click', onGroup);
   ungroupBtn.addEventListener('click', onUngroup);
   newBtn.addEventListener('click', onNew);
+  copyBtn.addEventListener('click', onCopy);
+  pasteBtn.addEventListener('click', onPaste);
 
   alignBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -139,6 +145,10 @@ export function createUI({
     subtractBtn.disabled = !canCombine;
     intersectBtn.disabled = !canCombine;
     deleteBtn.disabled = !hasSelection;
+    copyBtn.disabled = !hasSelection;
+    duplicateBtn.disabled = !hasSelection;
+    groupBtn.disabled = sel.length < 2;
+    ungroupBtn.disabled = !sel.some((o) => o.isGroup);
     alignBtns.forEach((b) => { b.disabled = sel.length < 2; });
     renderDimensions(primary);
 
@@ -161,5 +171,9 @@ export function createUI({
     redoBtn.disabled = !canRedo;
   }
 
-  return { refresh, setActiveMode, setHistoryState };
+  function setClipboardState(hasClipboard) {
+    pasteBtn.disabled = !hasClipboard;
+  }
+
+  return { refresh, setActiveMode, setHistoryState, setClipboardState };
 }

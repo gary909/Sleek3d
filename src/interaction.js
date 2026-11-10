@@ -21,6 +21,8 @@ export function createInteraction({
   onNudgeEnd,
   onToggleHoleKey,
   onFocus,
+  onCopy,
+  onPaste,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -152,6 +154,16 @@ export function createInteraction({
     if (mod && (event.key === 'a' || event.key === 'A')) {
       event.preventDefault();
       onSelectAll?.();
+      return;
+    }
+    if (mod && (event.key === 'c' || event.key === 'C')) {
+      event.preventDefault();
+      onCopy?.();
+      return;
+    }
+    if (mod && (event.key === 'v' || event.key === 'V')) {
+      event.preventDefault();
+      onPaste?.();
       return;
     }
 

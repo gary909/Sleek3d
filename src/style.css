@@ -25,15 +25,45 @@ body {
   display: block;
 }
 
+#topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+}
+
+#topnav .sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+#topnav .nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 aside {
   position: fixed;
-  top: 16px;
+  top: 64px;
   background: var(--panel-bg);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-  max-height: calc(100vh - 32px);
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
 }
 
