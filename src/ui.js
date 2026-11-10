@@ -1,4 +1,5 @@
 import { SHAPE_DEFS } from './shapes.js';
+import { getUnit, DEFAULT_SETTINGS, fromMm, toMm } from './settings.js';
 
 export function createUI({
   state,
@@ -176,4 +177,70 @@ export function createUI({
   }
 
   return { refresh, setActiveMode, setHistoryState, setClipboardState };
+}
+
+export function createSettingsPanel({ settings, onUpdate }) {
+  const btn = document.getElementById('settings-btn');
+  const modal = document.getElementById('settings-modal');
+  const closeBtn = document.getElementById('s-close');
+  const bgInput = document.getElementById('s-bg');
+  const bgReset = document.getElementById('s-bg-reset');
+  const shadowsInput = document.getElementById('s-shadows');
+  const gridInput = document.getElementById('s-grid');
+  const unitsSelect = document.getElementById('s-units');
+  const gridWInput = document.getElementById('s-gridw');
+  const gridLInput = document.getElementById('s-gridl');
+  const gridWUnit = document.getElementById('s-gridw-unit');
+  const gridLUnit = document.getElementById('s-gridl-unit');
+
+  function syncUnits() {
+    const unit = getUnit(settings);
+    gridWUnit.textContent = unit;
+    gridLUnit.textContent = unit;
+  }
+
+  function gridDisplay(mmValue) {
+    return Number(fromMm(mmValue, settings).toFixed(2)).toString();
+  }
+
+  function sync() {
+    bgInput.value = settings.background;
+    shadowsInput.checked = settings.shadows;
+    gridInput.checked = settings.grid;
+    unitsSelect.value = settings.units;
+    gridWInput.value = gridDisplay(settings.gridWidth);
+    gridLInput.value = gridDisplay(settings.gridLength);
+    syncUnits();
+  }
+
+  btn.addEventListener('click', () => {
+    sync();
+    modal.hidden = false;
+  });
+  closeBtn.addEventListener('click', () => {
+    modal.hidden = true;
+  });
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.hidden = true;
+  });
+
+  bgInput.addEventListener('input', () => onUpdate({ background: bgInput.value }));
+  bgReset.addEventListener('click', () => {
+    bgInput.value = DEFAULT_SETTINGS.background;
+    onUpdate({ background: DEFAULT_SETTINGS.background });
+  });
+  shadowsInput.addEventListener('change', () => onUpdate({ shadows: shadowsInput.checked }));
+  gridInput.addEventListener('change', () => onUpdate({ grid: gridInput.checked }));
+  unitsSelect.addEventListener('change', () => {
+    onUpdate({ units: unitsSelect.value });
+    gridWInput.value = gridDisplay(settings.gridWidth);
+    gridLInput.value = gridDisplay(settings.gridLength);
+    syncUnits();
+  });
+  gridWInput.addEventListener('change', () =>
+    onUpdate({ gridWidth: Math.max(1, Math.round(toMm(Number(gridWInput.value) || 0, settings))) })
+  );
+  gridLInput.addEventListener('change', () =>
+    onUpdate({ gridLength: Math.max(1, Math.round(toMm(Number(gridLInput.value) || 0, settings))) })
+  );
 }

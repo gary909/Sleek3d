@@ -10,22 +10,24 @@ import {
   createTransformControls,
   handleResize,
   applyEnvironment,
+  GRID_BASE_SIZE,
 } from './scene.js';
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createInteraction } from './interaction.js';
-import { createUI } from './ui.js';
+import { createUI, createSettingsPanel } from './ui.js';
 import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
+import { loadSettings, saveSettings, getUnit, formatLength } from './settings.js';
 
 const container = document.getElementById('app');
 
 const renderer = createRenderer(container);
 const scene = createScene();
 const camera = createCamera(container);
-createLights(scene);
-createGround(scene);
+const lights = createLights(scene);
+const { gridGroup } = createGround(scene);
 applyEnvironment(renderer, scene);
 
 // Measurement label: a billboard sprite attached above the selected object.
@@ -84,6 +86,11 @@ const controls = createControls(camera, renderer.domElement);
 const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
 handleResize(renderer, camera, container);
+
+// Settings (loaded from localStorage and applied to the scene).
+const settings = loadSettings();
+applySettings(settings);
+createSettingsPanel({ settings, onUpdate: updateSetting });
 
 const state = {
   shapes: [],
@@ -771,7 +778,7 @@ function updateMeasure() {
   const pos = object.position;
 
   const pad = 6;
-  const fmt = (v) => v.toFixed(2).padStart(pad) + ' mm';
+  const fmt = (v) => formatLength(v, settings).padStart(pad) + ' ' + getUnit(settings);
   const sep = ' · ';
 
   const sizeText = `W ${fmt(size.x)}${sep}D ${fmt(size.z)}${sep}H ${fmt(size.y)}`;
@@ -885,7 +892,7 @@ function updateRuler() {
   const worldHeight = 0.5;
   rulerSprite.scale.set(worldHeight * (rulerCanvas.width / rulerCanvas.height), worldHeight, 1);
 
-  drawRulerText(len.toFixed(2) + ' mm');
+  drawRulerText(formatLength(len, settings) + ' ' + getUnit(settings));
   rulerGroup.visible = true;
 }
 
@@ -990,6 +997,23 @@ function seedDemo() {
 }
 
 // ---- boot -------------------------------------------------------------------
+
+function applySettings(s) {
+  scene.background.set(s.background);
+  scene.fog.color.set(s.background);
+  renderer.shadowMap.enabled = s.shadows;
+  lights.sun.castShadow = s.shadows;
+  gridGroup.visible = s.grid;
+  gridGroup.scale.set(s.gridWidth / GRID_BASE_SIZE, 1, s.gridLength / GRID_BASE_SIZE);
+}
+
+function updateSetting(changes) {
+  Object.assign(settings, changes);
+  applySettings(settings);
+  saveSettings(settings);
+  updateMeasure();
+  updateRuler();
+}
 
 const loaded = loadProject();
 if (loaded && loaded.length) {
