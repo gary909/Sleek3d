@@ -1,8 +1,9 @@
 import { SHAPE_DEFS } from './shapes.js';
-import { getUnit, DEFAULT_SETTINGS, fromMm, toMm } from './settings.js';
+import { getUnit, DEFAULT_SETTINGS, fromMm, toMm, formatLength } from './settings.js';
 
 export function createUI({
   state,
+  settings,
   onAdd,
   onScale,
   onScaleCommit,
@@ -103,8 +104,10 @@ export function createUI({
     dimContainer.hidden = !def;
     if (!def) return;
 
+    const unit = getUnit(settings);
     const current = { ...(object.userData.params || {}) };
     def.params.forEach((spec) => {
+      const isLength = spec.unit !== false;
       const row = document.createElement('div');
       row.className = 'row';
 
@@ -113,15 +116,17 @@ export function createUI({
 
       const input = document.createElement('input');
       input.type = 'number';
-      input.min = spec.min;
-      input.max = spec.max;
-      input.step = spec.step;
-      input.value = current[spec.key] ?? spec.min;
+      input.min = isLength ? fromMm(spec.min, settings) : spec.min;
+      input.max = isLength ? fromMm(spec.max, settings) : spec.max;
+      input.step = isLength ? fromMm(spec.step, settings) : spec.step;
+      input.value = isLength
+        ? formatLength(current[spec.key] ?? spec.min, settings)
+        : String(current[spec.key] ?? spec.min);
 
       input.addEventListener('input', () => {
-        let value = Number(input.value);
-        if (!Number.isFinite(value)) value = spec.min;
-        value = Math.min(spec.max, Math.max(spec.min, value));
+        const raw = Number(input.value);
+        const num = Number.isFinite(raw) ? (isLength ? toMm(raw, settings) : raw) : spec.min;
+        const value = Math.min(spec.max, Math.max(spec.min, num));
         current[spec.key] = value;
         onParamChange({ ...current });
       });
@@ -129,6 +134,14 @@ export function createUI({
 
       row.appendChild(label);
       row.appendChild(input);
+
+      if (isLength) {
+        const unitEl = document.createElement('span');
+        unitEl.className = 'dim-unit';
+        unitEl.textContent = unit;
+        row.appendChild(unitEl);
+      }
+
       dimContainer.appendChild(row);
     });
   }

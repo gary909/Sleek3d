@@ -113,7 +113,7 @@ export function createStar({ outer = 1.2, points = 5, d = 0.4, color = 0xedd24a 
 
 // --- registry ----------------------------------------------------------------
 
-const param = (key, label, min, max, step = 0.1) => ({ key, label, min, max, step });
+const param = (key, label, min, max, step = 0.1, unit = true) => ({ key, label, min, max, step, unit });
 
 export const SHAPE_DEFS = {
   box: { label: 'Box', factory: createBox, params: [param('w', 'Width', 0.1, 20), param('h', 'Height', 0.1, 20), param('d', 'Depth', 0.1, 20)] },
@@ -125,7 +125,7 @@ export const SHAPE_DEFS = {
   pyramid: { label: 'Pyramid', factory: createPyramid, params: [param('s', 'Base', 0.1, 10), param('h', 'Height', 0.1, 20)] },
   hemisphere: { label: 'Hemisphere', factory: createHemisphere, params: [param('r', 'Radius', 0.1, 10)] },
   prism: { label: 'Prism', factory: createPrism, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20)] },
-  star: { label: 'Star', factory: createStar, params: [param('outer', 'Size', 0.1, 10), param('points', 'Points', 3, 12, 1), param('d', 'Thickness', 0.1, 5)] },
+  star: { label: 'Star', factory: createStar, params: [param('outer', 'Size', 0.1, 10), param('points', 'Points', 3, 12, 1, false), param('d', 'Thickness', 0.1, 5)] },
 };
 
 export const SHAPE_FACTORIES = Object.fromEntries(

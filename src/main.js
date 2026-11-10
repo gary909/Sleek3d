@@ -185,6 +185,7 @@ function scheduleSave() {
 
 const ui = createUI({
   state,
+  settings,
   onAdd: addShape,
   onScale,
   onScaleCommit,
@@ -1276,6 +1277,7 @@ function updateSetting(changes) {
   updateMeasure();
   updateRuler();
   renderSnapOptions();
+  ui.refresh();
 }
 
 function renderSnapOptions() {
