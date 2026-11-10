@@ -2,6 +2,12 @@
 
 <img width="600" alt="Sleek3d 3d modeling software" src="https://github.com/user-attachments/assets/ef063c3b-e243-4b45-a883-c5b9a0369a4b" />
 
+
+
+A minimal **Tinkercad-style 3D modelling** app built with plain HTML/CSS/JavaScript, [Three.js](https://threejs.org), and [three-bvh-csg](https://github.com/gkjohnson/three-bvh-csg) for boolean (CSG) operations.
+
+___________________________________________
+
 TO DO:
 
 Add transparency/solid toggle
@@ -36,7 +42,7 @@ radius/height options...  make as slider, with size mm/cm present
 
 Export...  opens window with .stl, .obj file export etc. View tri amount, option to decimate
 
-A minimal **Tinkercad-style 3D modelling** app built with plain HTML/CSS/JavaScript, [Three.js](https://threejs.org), and [three-bvh-csg](https://github.com/gkjohnson/three-bvh-csg) for boolean (CSG) operations.
+___________________________________________
 
 ## Quick start
 
