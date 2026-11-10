@@ -92,6 +92,14 @@ const settings = loadSettings();
 applySettings(settings);
 createSettingsPanel({ settings, onUpdate: updateSetting });
 
+// Help bar toggle (info icon to the right of the settings icon).
+const helpBtn = document.getElementById('help-btn');
+const helpBar = document.getElementById('help');
+helpBtn.addEventListener('click', () => {
+  helpBar.hidden = !helpBar.hidden;
+  helpBtn.classList.toggle('active', !helpBar.hidden);
+});
+
 const state = {
   shapes: [],
   selected: [],

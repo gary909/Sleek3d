@@ -225,10 +225,17 @@ section:first-child {
   pointer-events: none;
 }
 
-#settings-btn {
+#corner-buttons {
   position: fixed;
   bottom: 12px;
   left: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+
+#settings-btn,
+#help-btn {
   width: 40px;
   height: 40px;
   display: flex;
@@ -239,8 +246,20 @@ section:first-child {
   border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
-  z-index: 20;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+#help-btn {
+  font-weight: 600;
+}
+
+#help-btn.active {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+#help[hidden] {
+  display: none;
 }
 
 #settings-modal {
