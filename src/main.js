@@ -42,6 +42,44 @@ measureSprite.renderOrder = 999;
 measureSprite.visible = false;
 scene.add(measureSprite);
 
+// Ruler (a line + distance chip shown while moving a shape).
+const rulerGroup = new THREE.Group();
+rulerGroup.visible = false;
+scene.add(rulerGroup);
+
+const rulerMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.06, 0.06, 1, 8),
+  new THREE.MeshBasicMaterial({ color: 0xffb300, depthTest: false, side: THREE.DoubleSide })
+);
+rulerMesh.renderOrder = 998;
+rulerGroup.add(rulerMesh);
+
+// Tick marks (small perpendicular rods along the ruler).
+const tickGroup = new THREE.Group();
+rulerGroup.add(tickGroup);
+const tickMaterial = new THREE.MeshBasicMaterial({ color: 0xffb300, depthTest: false, side: THREE.DoubleSide });
+const TICK_COUNT = 40;
+const ticks = [];
+for (let i = 0; i < TICK_COUNT; i++) {
+  const tick = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 6), tickMaterial);
+  tick.renderOrder = 998;
+  tick.visible = false;
+  tickGroup.add(tick);
+  ticks.push(tick);
+}
+
+const rulerCanvas = document.createElement('canvas');
+rulerCanvas.width = 320;
+rulerCanvas.height = 96;
+const rulerCtx = rulerCanvas.getContext('2d');
+const rulerTexture = new THREE.CanvasTexture(rulerCanvas);
+rulerTexture.minFilter = THREE.LinearFilter;
+const rulerSprite = new THREE.Sprite(
+  new THREE.SpriteMaterial({ map: rulerTexture, transparent: true, depthTest: false, depthWrite: false })
+);
+rulerSprite.renderOrder = 999;
+rulerGroup.add(rulerSprite);
+
 const controls = createControls(camera, renderer.domElement);
 const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
@@ -62,6 +100,7 @@ let colorBefore = null;
 let gizmoBefore = null;
 let resizeGesture = null;
 let nudgeGesture = null;
+let moveStart = null;
 
 let saveTimer = null;
 
@@ -134,11 +173,18 @@ transformControls.addEventListener('dragging-changed', (event) => {
 transformControls.addEventListener('objectChange', () => {
   ui.refresh();
   updateMeasure();
+  updateRuler();
 });
 
 transformControls.addEventListener('mouseDown', () => {
   const obj = transformControls.object;
-  if (obj) gizmoBefore = captureTransform(obj);
+  if (obj) {
+    gizmoBefore = captureTransform(obj);
+    if (transformControls.mode === 'translate') {
+      moveStart = obj.position.clone();
+      updateRuler();
+    }
+  }
 });
 
 transformControls.addEventListener('mouseUp', () => {
@@ -152,6 +198,9 @@ transformControls.addEventListener('mouseUp', () => {
     }
   }
   gizmoBefore = null;
+  moveStart = null;
+  updateMeasure();
+  updateRuler();
 });
 
 // ---- shape management -------------------------------------------------------
@@ -668,6 +717,7 @@ function roundedRect(ctx, x, y, w, h, r) {
 }
 
 // Live measurement label, attached above the selected object (billboard sprite).
+// Fixed-width fields + a fixed number of lines so the label never changes size.
 function updateMeasure() {
   const object = state.selected[0];
   if (!object) {
@@ -683,47 +733,123 @@ function updateMeasure() {
   const size = box.getSize(new THREE.Vector3());
   const pos = object.position;
 
-  // Right-align all values to a shared width + fixed separator so the W/D/H
-  // columns line up over X/Y/Z (needs a monospace font).
-  const allValues = [size.x, size.z, size.y, pos.x, pos.y, pos.z].map((v) => v.toFixed(2));
-  const maxLen = Math.max(...allValues.map((s) => s.length));
-  const fmt = (v) => v.toFixed(2).padStart(maxLen, ' ');
-  const sep = '  ·  ';
+  const pad = 6;
+  const fmt = (v) => v.toFixed(2).padStart(pad) + ' mm';
+  const sep = ' · ';
+
   const sizeText = `W ${fmt(size.x)}${sep}D ${fmt(size.z)}${sep}H ${fmt(size.y)}`;
   const posText = `X ${fmt(pos.x)}${sep}Y ${fmt(pos.y)}${sep}Z ${fmt(pos.z)}`;
 
-  const font = 'bold 44px ui-monospace, Menlo, Consolas, monospace';
+  const lines = [sizeText, posText];
+
+  const font = 'bold 40px ui-monospace, Menlo, Consolas, monospace';
   measureCtx.font = font;
-  const textWidth = Math.max(
-    measureCtx.measureText(sizeText).width,
-    measureCtx.measureText(posText).width
-  );
+  let textWidth = 0;
+  for (const line of lines) textWidth = Math.max(textWidth, measureCtx.measureText(line).width);
 
-  // Size the canvas tightly around the text.
-  const padX = 44;
-  const h = 164;
-  const w = Math.max(220, Math.ceil(textWidth + padX * 2));
+  const padX = 36;
+  const lineH = 50;
+  const padY = 20;
+  const w = Math.ceil(textWidth + padX * 2);
+  const h = padY * 2 + lines.length * lineH;
 
-  measureCanvas.width = w;
-  measureCanvas.height = h;
+  if (measureCanvas.width !== w) measureCanvas.width = w;
+  if (measureCanvas.height !== h) measureCanvas.height = h;
 
   measureCtx.font = font;
   measureCtx.textAlign = 'center';
   measureCtx.textBaseline = 'middle';
   measureCtx.clearRect(0, 0, w, h);
   measureCtx.fillStyle = 'rgba(20, 24, 28, 0.88)';
-  roundedRect(measureCtx, 4, 4, w - 8, h - 8, 28);
+  roundedRect(measureCtx, 4, 4, w - 8, h - 8, 24);
   measureCtx.fill();
   measureCtx.fillStyle = '#ffffff';
-  measureCtx.fillText(sizeText, w / 2, 54);
-  measureCtx.fillText(posText, w / 2, 114);
+  lines.forEach((line, i) => {
+    measureCtx.fillText(line, w / 2, padY + lineH * (i + 0.5));
+  });
   measureTexture.needsUpdate = true;
 
   const center = box.getCenter(new THREE.Vector3());
-  measureSprite.position.set(center.x, box.max.y + 0.8, center.z);
-  const worldHeight = 0.7;
+  measureSprite.position.set(center.x, box.max.y + 0.9, center.z);
+  const worldHeight = 0.65;
   measureSprite.scale.set(worldHeight * (w / h), worldHeight, 1);
   measureSprite.visible = true;
+}
+
+// Draw the distance value into the ruler's chip texture.
+function drawRulerText(text) {
+  const ctx = rulerCtx;
+  const w = rulerCanvas.width;
+  const h = rulerCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(20, 24, 28, 0.9)';
+  roundedRect(ctx, 4, 4, w - 8, h - 8, 22);
+  ctx.fill();
+  ctx.fillStyle = '#ffb300';
+  ctx.font = 'bold 56px ui-monospace, Menlo, Consolas, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, w / 2, h / 2);
+  rulerTexture.needsUpdate = true;
+}
+
+// Live ruler: a line from the move-start point to the current position, with a
+// distance chip at the midpoint. Only visible while a shape is being moved.
+function updateRuler() {
+  const object = state.selected[0];
+  if (!moveStart || !object) {
+    rulerGroup.visible = false;
+    return;
+  }
+  const start = moveStart;
+  const end = object.position;
+  const dir = new THREE.Vector3().subVectors(end, start);
+  const len = dir.length();
+
+  if (len < 0.001) {
+    rulerGroup.visible = false;
+    return;
+  }
+
+  const d = dir.clone().normalize();
+  const up = new THREE.Vector3(0, 1, 0);
+  const tickDir = new THREE.Vector3().crossVectors(d, up);
+  if (tickDir.lengthSq() < 1e-6) tickDir.set(1, 0, 0);
+  tickDir.normalize();
+  const tickLen = 0.4;
+
+  // Ruler rod from start to end.
+  const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+  rulerMesh.position.copy(mid);
+  rulerMesh.scale.set(1, len, 1);
+  rulerMesh.quaternion.setFromUnitVectors(up, d);
+
+  // Tick marks: one at each end, plus one per unit along the ruler.
+  const steps = [0];
+  for (let s = 1; s < len; s += 1) steps.push(s);
+  steps.push(len);
+
+  let n = 0;
+  for (const s of steps) {
+    if (n >= ticks.length) break;
+    const p = new THREE.Vector3().addVectors(start, d.clone().multiplyScalar(s));
+    const tick = ticks[n];
+    tick.visible = true;
+    tick.position.copy(p);
+    tick.quaternion.setFromUnitVectors(up, tickDir);
+    tick.scale.set(1, tickLen, 1);
+    n += 1;
+  }
+  for (let i = n; i < ticks.length; i++) ticks[i].visible = false;
+
+  // Distance chip, offset to the side + up so it doesn't crowd the object.
+  const chip = mid.clone().addScaledVector(tickDir, 0.9).addScaledVector(up, 0.4);
+  rulerSprite.position.copy(chip);
+  const worldHeight = 0.5;
+  rulerSprite.scale.set(worldHeight * (rulerCanvas.width / rulerCanvas.height), worldHeight, 1);
+
+  drawRulerText(len.toFixed(2) + ' mm');
+  rulerGroup.visible = true;
 }
 
 function alignSelection(axis, mode) {
