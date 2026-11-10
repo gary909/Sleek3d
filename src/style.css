@@ -175,11 +175,6 @@ section:first-child {
   margin: 4px 0 8px;
 }
 
-#booleans button {
-  margin-right: 4px;
-  margin-bottom: 6px;
-}
-
 .align-row {
   display: flex;
   align-items: center;
