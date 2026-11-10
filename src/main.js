@@ -12,7 +12,7 @@ import {
   applyEnvironment,
   GRID_BASE_SIZE,
 } from './scene.js';
-import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry } from './shapes.js';
+import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createInteraction } from './interaction.js';
 import { createUI, createSettingsPanel } from './ui.js';
@@ -44,21 +44,27 @@ measureSprite.renderOrder = 999;
 measureSprite.visible = false;
 scene.add(measureSprite);
 
-// Ruler (a line + distance chip shown while moving a shape).
+// Ruler overlays: a floating readout chip plus mode-specific 3D guides shown
+// while a shape is being moved / rotated / scaled.
 const rulerGroup = new THREE.Group();
 rulerGroup.visible = false;
 scene.add(rulerGroup);
 
-const rulerMesh = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.06, 0.06, 1, 8),
-  new THREE.MeshBasicMaterial({ color: 0xffb300, depthTest: false, side: THREE.DoubleSide })
-);
+const UP = new THREE.Vector3(0, 1, 0);
+
+const rulerMaterial = new THREE.MeshBasicMaterial({ color: 0xffb300, depthTest: false, side: THREE.DoubleSide });
+
+// Move: a rod from the start point to the current position, with tick marks.
+const moveGroup = new THREE.Group();
+rulerGroup.add(moveGroup);
+
+const rulerMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1, 8), rulerMaterial);
 rulerMesh.renderOrder = 998;
-rulerGroup.add(rulerMesh);
+moveGroup.add(rulerMesh);
 
 // Tick marks (small perpendicular rods along the ruler).
 const tickGroup = new THREE.Group();
-rulerGroup.add(tickGroup);
+moveGroup.add(tickGroup);
 const tickMaterial = new THREE.MeshBasicMaterial({ color: 0xffb300, depthTest: false, side: THREE.DoubleSide });
 const TICK_COUNT = 40;
 const ticks = [];
@@ -68,6 +74,48 @@ for (let i = 0; i < TICK_COUNT; i++) {
   tick.visible = false;
   tickGroup.add(tick);
   ticks.push(tick);
+}
+
+// Rotate: a 3D arc (tube) spanning the swept angle, plus start/end radius lines.
+const rotateGroup = new THREE.Group();
+rotateGroup.visible = false;
+rulerGroup.add(rotateGroup);
+
+const arcMesh = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 6, 24), rulerMaterial);
+arcMesh.renderOrder = 998;
+arcMesh.visible = false;
+rotateGroup.add(arcMesh);
+
+const arcRodStart = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1, 6), rulerMaterial);
+arcRodStart.renderOrder = 998;
+const arcRodEnd = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1, 6), rulerMaterial);
+arcRodEnd.renderOrder = 998;
+rotateGroup.add(arcRodStart, arcRodEnd);
+
+// Scale: axis-coloured rods for the current size + faint rods for the original size.
+const scaleGroup = new THREE.Group();
+scaleGroup.visible = false;
+rulerGroup.add(scaleGroup);
+
+const SCALE_AXIS_COLORS = [0xe74c3c, 0x2ecc71, 0x3498db]; // X, Y, Z
+const scaleCurrent = [];
+const scaleOriginal = [];
+for (let i = 0; i < 3; i++) {
+  const current = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04, 0.04, 1, 6),
+    new THREE.MeshBasicMaterial({ color: SCALE_AXIS_COLORS[i], depthTest: false, side: THREE.DoubleSide })
+  );
+  current.renderOrder = 998;
+  scaleGroup.add(current);
+  scaleCurrent.push(current);
+
+  const original = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 1, 6),
+    new THREE.MeshBasicMaterial({ color: 0x9aa0a6, opacity: 0.55, transparent: true, depthTest: false, side: THREE.DoubleSide })
+  );
+  original.renderOrder = 998;
+  scaleGroup.add(original);
+  scaleOriginal.push(original);
 }
 
 const rulerCanvas = document.createElement('canvas');
@@ -115,7 +163,8 @@ let colorBefore = null;
 let gizmoBefore = null;
 let resizeGesture = null;
 let nudgeGesture = null;
-let moveStart = null;
+let gesture = null;
+let shiftHeld = false;
 let clipboard = null;
 
 let saveTimer = null;
@@ -200,10 +249,15 @@ transformControls.addEventListener('mouseDown', () => {
   const obj = transformControls.object;
   if (obj) {
     gizmoBefore = captureTransform(obj);
-    if (transformControls.mode === 'translate') {
-      moveStart = obj.position.clone();
-      updateRuler();
-    }
+    gesture = {
+      mode: transformControls.mode,
+      startPos: obj.position.clone(),
+      startQuat: obj.quaternion.clone(),
+      startScale: obj.scale.clone(),
+      startBox: objectBox(obj).clone(),
+      startParams: editableMesh(obj) ? { ...obj.userData.params } : null,
+    };
+    updateRuler();
   }
 });
 
@@ -211,14 +265,36 @@ transformControls.addEventListener('mouseUp', () => {
   const obj = transformControls.object;
   if (obj && gizmoBefore) {
     const after = captureTransform(obj);
-    if (!transformsEqual(gizmoBefore, after)) {
+    const transformed = !transformsEqual(gizmoBefore, after);
+
+    // On a scale gesture, fold the gizmo scale into the shape's dimensions so the
+    // inspector Width/Height/Depth stay in sync, then reset the scale to 1×.
+    if (transformed && gesture && gesture.mode === 'scale' && gesture.startParams && bakeScaleIntoParams(obj)) {
+      history.push(
+        commandScaleBake(
+          obj,
+          { params: gesture.startParams, transform: gizmoBefore },
+          { params: { ...obj.userData.params }, transform: captureTransform(obj) }
+        )
+      );
+      updateHistoryUI();
+      scheduleSave();
+      ui.refresh();
+      updateMeasure();
+      updateRuler();
+      gizmoBefore = null;
+      gesture = null;
+      return;
+    }
+
+    if (transformed) {
       history.push(commandTransform(obj, gizmoBefore, after));
       updateHistoryUI();
       scheduleSave();
     }
   }
   gizmoBefore = null;
-  moveStart = null;
+  gesture = null;
   updateMeasure();
   updateRuler();
 });
@@ -296,7 +372,28 @@ function syncGizmo() {
 function onSetMode(mode) {
   transformControls.setMode(mode);
   ui.setActiveMode(mode);
+  updateRotationSnap();
 }
+
+// Rotation snapping: free by default, 15deg steps while Shift is held (rotate mode only).
+const ROTATION_SNAP_DEG = 15;
+
+function updateRotationSnap() {
+  const snapping = shiftHeld && transformControls.mode === 'rotate';
+  transformControls.setRotationSnap(snapping ? THREE.MathUtils.degToRad(ROTATION_SNAP_DEG) : null);
+}
+
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Shift' || shiftHeld) return;
+  shiftHeld = true;
+  updateRotationSnap();
+});
+
+window.addEventListener('keyup', (event) => {
+  if (event.key !== 'Shift') return;
+  shiftHeld = false;
+  updateRotationSnap();
+});
 
 // ---- history & commands -----------------------------------------------------
 
@@ -372,6 +469,19 @@ function commandTransform(mesh, before, after) {
   return {
     undo: () => applyTransform(mesh, before),
     redo: () => applyTransform(mesh, after),
+  };
+}
+
+function commandScaleBake(mesh, before, after) {
+  return {
+    undo: () => {
+      rebuildShapeGeometry(mesh, before.params);
+      applyTransform(mesh, before.transform);
+    },
+    redo: () => {
+      rebuildShapeGeometry(mesh, after.params);
+      applyTransform(mesh, after.transform);
+    },
   };
 }
 
@@ -828,7 +938,7 @@ function updateMeasure() {
   measureSprite.visible = true;
 }
 
-// Draw the distance value into the ruler's chip texture.
+// Draw the readout value into the ruler's chip texture.
 function drawRulerText(text) {
   const ctx = rulerCtx;
   const w = rulerCanvas.width;
@@ -837,23 +947,64 @@ function drawRulerText(text) {
   ctx.fillStyle = 'rgba(20, 24, 28, 0.9)';
   roundedRect(ctx, 4, 4, w - 8, h - 8, 22);
   ctx.fill();
-  ctx.fillStyle = '#ffb300';
-  ctx.font = 'bold 56px ui-monospace, Menlo, Consolas, monospace';
+
+  // Auto-fit the font so long readouts never overflow the chip.
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  let size = 56;
+  while (size > 22) {
+    ctx.font = `bold ${size}px ui-monospace, Menlo, Consolas, monospace`;
+    if (ctx.measureText(text).width <= w - 28) break;
+    size -= 2;
+  }
+
+  ctx.fillStyle = '#ffb300';
   ctx.fillText(text, w / 2, h / 2);
   rulerTexture.needsUpdate = true;
 }
 
-// Live ruler: a line from the move-start point to the current position, with a
-// distance chip at the midpoint. Only visible while a shape is being moved.
+function setChipSize(worldHeight) {
+  rulerSprite.scale.set(worldHeight * (rulerCanvas.width / rulerCanvas.height), worldHeight, 1);
+}
+
+// Position a unit-height cylinder (local +Y) so it spans `from` → `to`.
+function placeRod(mesh, from, to) {
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  if (len < 1e-6) {
+    mesh.visible = false;
+    return false;
+  }
+  mesh.visible = true;
+  mesh.position.copy(from).addScaledVector(dir, 0.5);
+  mesh.scale.set(1, len, 1);
+  mesh.quaternion.setFromUnitVectors(UP, dir.normalize());
+  return true;
+}
+
+// Live ruler overlay for the active transform gesture (move / rotate / scale).
 function updateRuler() {
   const object = state.selected[0];
-  if (!moveStart || !object) {
+  if (!gesture || !object) {
     rulerGroup.visible = false;
+    moveGroup.visible = false;
+    rotateGroup.visible = false;
+    scaleGroup.visible = false;
     return;
   }
-  const start = moveStart;
+
+  moveGroup.visible = gesture.mode === 'translate';
+  rotateGroup.visible = gesture.mode === 'rotate';
+  scaleGroup.visible = gesture.mode === 'scale';
+
+  if (gesture.mode === 'translate') updateMoveRuler(object);
+  else if (gesture.mode === 'rotate') updateRotateRuler(object);
+  else if (gesture.mode === 'scale') updateScaleRuler(object);
+}
+
+// Move: a line from the start point to the current position, with a distance chip.
+function updateMoveRuler(object) {
+  const start = gesture.startPos;
   const end = object.position;
   const dir = new THREE.Vector3().subVectors(end, start);
   const len = dir.length();
@@ -864,8 +1015,7 @@ function updateRuler() {
   }
 
   const d = dir.clone().normalize();
-  const up = new THREE.Vector3(0, 1, 0);
-  const tickDir = new THREE.Vector3().crossVectors(d, up);
+  const tickDir = new THREE.Vector3().crossVectors(d, UP);
   if (tickDir.lengthSq() < 1e-6) tickDir.set(1, 0, 0);
   tickDir.normalize();
   const tickLen = 0.4;
@@ -874,7 +1024,7 @@ function updateRuler() {
   const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
   rulerMesh.position.copy(mid);
   rulerMesh.scale.set(1, len, 1);
-  rulerMesh.quaternion.setFromUnitVectors(up, d);
+  rulerMesh.quaternion.setFromUnitVectors(UP, d);
 
   // Tick marks: one at each end, plus one per unit along the ruler.
   const steps = [0];
@@ -888,19 +1038,123 @@ function updateRuler() {
     const tick = ticks[n];
     tick.visible = true;
     tick.position.copy(p);
-    tick.quaternion.setFromUnitVectors(up, tickDir);
+    tick.quaternion.setFromUnitVectors(UP, tickDir);
     tick.scale.set(1, tickLen, 1);
     n += 1;
   }
   for (let i = n; i < ticks.length; i++) ticks[i].visible = false;
 
   // Distance chip, offset to the side + up so it doesn't crowd the object.
-  const chip = mid.clone().addScaledVector(tickDir, 0.9).addScaledVector(up, 0.4);
+  const chip = mid.clone().addScaledVector(tickDir, 0.9).addScaledVector(UP, 0.4);
   rulerSprite.position.copy(chip);
-  const worldHeight = 0.5;
-  rulerSprite.scale.set(worldHeight * (rulerCanvas.width / rulerCanvas.height), worldHeight, 1);
+  setChipSize(0.5);
 
   drawRulerText(formatLength(len, settings) + ' ' + getUnit(settings));
+  rulerGroup.visible = true;
+}
+
+// Rotate: a 3D arc from the start orientation to the current orientation, with
+// an angle chip. The arc spans the net rotation (axis + angle) of the shape.
+function updateRotateRuler(object) {
+  const delta = new THREE.Quaternion()
+    .copy(object.quaternion)
+    .multiply(gesture.startQuat.clone().invert())
+    .normalize();
+  const angle = 2 * Math.acos(THREE.MathUtils.clamp(delta.w, -1, 1));
+
+  if (angle < 1e-4) {
+    rulerGroup.visible = false;
+    return;
+  }
+
+  const axis = new THREE.Vector3(delta.x, delta.y, delta.z);
+  if (axis.lengthSq() < 1e-6) {
+    rulerGroup.visible = false;
+    return;
+  }
+  axis.normalize();
+
+  const box = objectBox(object);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const radius = Math.max(sphere.radius * 1.15, 0.5);
+  const center = sphere.center.clone();
+
+  // Stable reference direction perpendicular to the rotation axis.
+  const ref = new THREE.Vector3(1, 0, 0);
+  if (Math.abs(axis.dot(ref)) > 0.99) ref.set(0, 1, 0);
+  ref.sub(axis.clone().multiplyScalar(axis.dot(ref))).normalize();
+  const tangent = new THREE.Vector3().crossVectors(axis, ref);
+
+  // Arc tube spanning the swept angle (rebuild + dispose to avoid leaks).
+  const tubularSegments = Math.max(8, Math.round((angle / (Math.PI * 2)) * 64));
+  arcMesh.geometry.dispose();
+  arcMesh.geometry = new THREE.TorusGeometry(radius, 0.06, 6, tubularSegments, angle);
+  arcMesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(ref, tangent, axis));
+  arcMesh.position.copy(center);
+  arcMesh.visible = true;
+
+  // Start / end radius lines make the sweep readable.
+  const endDir = new THREE.Vector3().copy(ref).applyAxisAngle(axis, angle);
+  placeRod(arcRodStart, center, center.clone().addScaledVector(ref, radius));
+  placeRod(arcRodEnd, center, center.clone().addScaledVector(endDir, radius));
+
+  const midDir = new THREE.Vector3().copy(ref).applyAxisAngle(axis, angle / 2);
+  const chip = center.clone().addScaledVector(midDir, radius + 0.9).addScaledVector(UP, 0.4);
+  rulerSprite.position.copy(chip);
+  setChipSize(0.5);
+
+  drawRulerText(THREE.MathUtils.radToDeg(angle).toFixed(2) + '\u00b0');
+  rulerGroup.visible = true;
+}
+
+// Scale: axis rods from the original size to the current size, plus a factor chip.
+function updateScaleRuler(object) {
+  const current = objectBox(object);
+  const original = gesture.startBox;
+  if (current.isEmpty() || original.isEmpty()) {
+    rulerGroup.visible = false;
+    return;
+  }
+
+  const axes = ['x', 'y', 'z'];
+  const anchor = original.min.clone();
+  for (let i = 0; i < 3; i++) {
+    const a = axes[i];
+    const dir = new THREE.Vector3();
+    dir[a] = 1;
+
+    placeRod(scaleCurrent[i], anchor, anchor.clone().addScaledVector(dir, current.max[a] - current.min[a]));
+    placeRod(scaleOriginal[i], anchor, anchor.clone().addScaledVector(dir, original.max[a] - original.min[a]));
+  }
+
+  const size = current.getSize(new THREE.Vector3());
+  const unit = getUnit(settings);
+  const axis = transformControls.axis;
+
+  let text;
+  if (axis === 'X') text = `Width ${formatLength(size.x, settings)} ${unit}`;
+  else if (axis === 'Y') text = `Height ${formatLength(size.y, settings)} ${unit}`;
+  else if (axis === 'Z') text = `Depth ${formatLength(size.z, settings)} ${unit}`;
+  else {
+    // Uniform (center) or plane handles scale more than one axis: show factor(s).
+    const s = object.scale;
+    const g = gesture.startScale;
+    const uniform = Math.abs(s.x - s.y) < 1e-4 && Math.abs(s.y - s.z) < 1e-4;
+    if (uniform) {
+      const factor = s.x / Math.max(g.x, 1e-6);
+      text = (factor * 100).toFixed(0) + '% · ' + factor.toFixed(2) + '\u00d7';
+    } else {
+      text = `${(s.x / Math.max(g.x, 1e-6)).toFixed(2)}/${(s.y / Math.max(g.y, 1e-6)).toFixed(2)}/${(s.z / Math.max(g.z, 1e-6)).toFixed(2)}×`;
+    }
+  }
+
+  // Chip to the side so it doesn't overlap the measurement label above.
+  const center = current.getCenter(new THREE.Vector3());
+  const chip = center.clone().add(new THREE.Vector3((current.max.x - current.min.x) / 2 + 0.9, 0, 0));
+  rulerSprite.position.copy(chip);
+  setChipSize(0.5);
+
+  drawRulerText(text);
   rulerGroup.visible = true;
 }
 

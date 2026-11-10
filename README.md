@@ -70,6 +70,7 @@ npm run preview
 | Select a shape | Click |
 | Multi-select | Shift-click |
 | Move / rotate / scale a shape | Drag the gizmo handles |
+| Snap rotation to 15° | Hold Shift while rotating |
 | Switch tool | W / E / R keys or panel buttons |
 | Undo / redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z (or buttons) |
 | Duplicate | Ctrl/Cmd+D (or button) |
@@ -91,7 +92,7 @@ npm run preview
 - **Polish** — hover highlighting, image-based studio lighting + filmic tone mapping, and a major/minor grid.
 - **Text** — add 3D extruded text (uses a bundled font).
 - **Alignment** — align selected shapes to min / center / max on X, Y, and Z.
-- **Transform gizmos** — draggable move / rotate / scale handles. Translation snaps to the grid (0.5 / 1 / 2 units), rotation snaps to 15°, and the Y handle lifts shapes vertically.
+- **Transform gizmos** — draggable move / rotate / scale handles. Translation snaps to the grid (0.5 / 1 / 2 units), rotation is free by default (hold Shift to snap to 15°), and the Y handle lifts shapes vertically. While dragging, a live readout shows distance (move), angle in degrees (rotate), or scale factor / percentage (scale).
 - **Select** — click to select, shift-click to multi-select.
 - **Inspector** — uniform scale, color, solid/hole toggle, delete.
 - **Undo / redo** — full history (add, delete, booleans, transforms, color, hole, scale) via Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z or the panel buttons.

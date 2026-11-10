@@ -120,7 +120,7 @@ export function createTransformControls(camera, domElement) {
   transform.setMode('translate');
   transform.setSize(0.9);
   transform.setTranslationSnap(1);
-  transform.setRotationSnap(THREE.MathUtils.degToRad(15));
+  transform.setRotationSnap(null); // free rotation by default; Shift snaps to 15deg
   transform.setScaleSnap(0.1);
   return transform;
 }

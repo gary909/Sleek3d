@@ -156,3 +156,59 @@ export function rebuildShapeGeometry(mesh, params) {
   return true;
 }
 
+// Fold a shape's current (non-unit) scale into its dimension parameters and reset
+// the scale back to 1×. Width/Depth fold their own axes, height folds Y, and
+// radial parameters (radius/tube/base/size) fold the horizontal XZ scale. Returns
+// true if anything changed.
+export function bakeScaleIntoParams(mesh) {
+  const def = SHAPE_DEFS[mesh.userData.shapeType];
+  if (!def || !mesh.userData.params) return false;
+
+  const s = mesh.scale;
+  const nearlyOne = (v) => Math.abs(v - 1) < 1e-6;
+  if (nearlyOne(s.x) && nearlyOne(s.y) && nearlyOne(s.z)) return false;
+
+  const p = { ...mesh.userData.params };
+  const rh = (s.x + s.z) / 2; // radial dimensions live in the XZ plane
+  const mul = (k, f) => {
+    if (p[k] != null) p[k] *= f;
+  };
+
+  switch (mesh.userData.shapeType) {
+    case 'box':
+    case 'wedge':
+      mul('w', s.x);
+      mul('h', s.y);
+      mul('d', s.z);
+      break;
+    case 'cylinder':
+    case 'cone':
+    case 'prism':
+      mul('r', rh);
+      mul('h', s.y);
+      break;
+    case 'pyramid':
+      mul('s', rh);
+      mul('h', s.y);
+      break;
+    case 'sphere':
+    case 'hemisphere':
+      mul('r', Math.cbrt(s.x * s.y * s.z));
+      break;
+    case 'torus':
+      mul('r', rh);
+      mul('tube', rh);
+      break;
+    case 'star':
+      mul('outer', rh);
+      mul('d', s.z);
+      break;
+    default:
+      return false;
+  }
+
+  rebuildShapeGeometry(mesh, p);
+  mesh.scale.set(1, 1, 1);
+  return true;
+}
+

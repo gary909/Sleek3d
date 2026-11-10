@@ -165,6 +165,8 @@ export function createUI({
     modeBtns.forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.mode === mode);
     });
+    const rotateHint = document.getElementById('rotate-hint');
+    if (rotateHint) rotateHint.hidden = mode !== 'rotate';
   }
 
   function setHistoryState(canUndo, canRedo) {
