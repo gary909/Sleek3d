@@ -19,6 +19,8 @@ Add shape icons to shape text
 
 option for reference image?
 
+Colours: add predefined pallettes
+
 Zoom In/Out buttons
 
 Toggle to orthographic view (flat view)
