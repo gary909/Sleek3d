@@ -64,16 +64,20 @@ export function createGround(scene) {
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Minor grid lines (every 1 unit) + darker major lines (every 5 units).
-  const minor = new THREE.GridHelper(40, 40, 0xc9d3de, 0xdfe6ee);
+  // Fine sub-grid (0.5 unit) → minor (1 unit) → major (5 unit), lightest to darkest.
+  const fine = new THREE.GridHelper(40, 80, 0xd8e0e8, 0xd8e0e8);
+  fine.position.y = 0.002;
+  scene.add(fine);
+
+  const minor = new THREE.GridHelper(40, 40, 0xc4ceda, 0xc4ceda);
   minor.position.y = 0.004;
   scene.add(minor);
 
-  const major = new THREE.GridHelper(40, 8, 0x8f9cb0, 0xa8b4c4);
+  const major = new THREE.GridHelper(40, 8, 0x9aa6b8, 0x9aa6b8);
   major.position.y = 0.006;
   scene.add(major);
 
-  return { ground, minor, major };
+  return { ground, fine, minor, major };
 }
 
 // Studio-style image-based lighting so standard materials get nice reflections.
