@@ -11,6 +11,8 @@ ___________________________________________
 
 TO DO:
 
+add mm/cm text to grid for easier view
+
 Add shape icons to shape text
 
 option for reference image?
