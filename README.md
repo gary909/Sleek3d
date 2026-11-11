@@ -57,6 +57,10 @@ radius/height options...  make as slider, with size mm/cm present
 
 ___________________________________________
 
+
+<img width="600" alt="Screenshot 2026-11-11 at 09 29 39" src="https://github.com/user-attachments/assets/b37da314-5059-4417-81d8-ff6e154dfa9a" />
+
+
 ## Quick start
 
 ```bash
