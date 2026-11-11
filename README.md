@@ -11,10 +11,6 @@ ___________________________________________
 
 TO DO:
 
-Add transparency/solid toggle
-
-Add darker border to grid outline
-
 Add shape icons to shape text
 
 option for reference image?
@@ -39,11 +35,24 @@ front panel designer mode?
 
 Option to add textures to objects? Could have this as a separate page/software?
 
+Export...  opens window with .stl, .obj file export etc. View tri amount, option to decimate
+
+
+DONE:
+
+Text Tool Tips
+
+Add transparency/solid toggle
+
+Add darker border to grid outline
+
 remove 'tool' text from header and have move, rotate and scale sit on one line
 
-radius/height options...  make as slider, with size mm/cm present 
+Add transparency/solid toggle
 
-Export...  opens window with .stl, .obj file export etc. View tri amount, option to decimate
+Add darker border to grid outline
+
+radius/height options...  make as slider, with size mm/cm present 
 
 ___________________________________________
 
