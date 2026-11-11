@@ -10,6 +10,7 @@ export function createUI({
   onColor,
   onColorCommit,
   onToggleHole,
+  onToggleTransparent,
   onDelete,
   onBoolean,
   onExport,
@@ -33,6 +34,7 @@ export function createUI({
   const scaleInput = document.getElementById('scale');
   const colorInput = document.getElementById('color');
   const holeInput = document.getElementById('hole');
+  const transparentInput = document.getElementById('transparent');
   const snapSelect = document.getElementById('snap');
   const deleteBtn = document.getElementById('delete');
   const unionBtn = document.getElementById('union');
@@ -63,6 +65,7 @@ export function createUI({
   colorInput.addEventListener('input', () => onColor(colorInput.value));
   colorInput.addEventListener('change', onColorCommit);
   holeInput.addEventListener('change', () => onToggleHole(holeInput.checked));
+  transparentInput.addEventListener('change', () => onToggleTransparent(transparentInput.checked));
   deleteBtn.addEventListener('click', onDelete);
 
   undoBtn.addEventListener('click', onUndo);
@@ -171,6 +174,7 @@ export function createUI({
       scaleInput.value = String(primary.scale.x);
       colorInput.value = '#' + (mesh ? mesh.material.color.getHexString() : '4a90d9');
       holeInput.checked = mesh ? !mesh.userData.solid : false;
+      transparentInput.checked = mesh ? mesh.userData.transparent === true : false;
     }
   }
 

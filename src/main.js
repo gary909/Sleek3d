@@ -192,6 +192,7 @@ const ui = createUI({
   onColor,
   onColorCommit,
   onToggleHole,
+  onToggleTransparent,
   onDelete,
   onBoolean,
   onExport,
@@ -339,24 +340,42 @@ function removeShape(object) {
   });
 }
 
+function applyAppearance(mesh) {
+  const mat = mesh.material;
+  const wasTransparent = mat.transparent;
+
+  if (mesh.userData._prevColor == null) {
+    mesh.userData._prevColor = mat.color.getHex();
+  }
+
+  const isHole = mesh.userData.solid === false;
+  const seeThrough = mesh.userData.transparent === true;
+
+  if (isHole) {
+    mat.transparent = true;
+    mat.opacity = 0.35;
+    mat.depthWrite = false;
+    mat.color.set(0xd64545);
+  } else if (seeThrough) {
+    mat.transparent = true;
+    mat.opacity = 0.3;
+    mat.depthWrite = false;
+    mat.color.set(mesh.userData._prevColor);
+  } else {
+    mat.transparent = false;
+    mat.opacity = 1;
+    mat.depthWrite = true;
+    mat.color.set(mesh.userData._prevColor);
+  }
+
+  // Changing `transparent` on a material that has already rendered needs a
+  // program refresh — otherwise the toggle only takes effect on the next reload.
+  if (mat.transparent !== wasTransparent) mat.needsUpdate = true;
+}
+
 function setHole(mesh, isHole) {
   mesh.userData.solid = !isHole;
-  if (isHole) {
-    if (mesh.userData._prevColor == null) {
-      mesh.userData._prevColor = mesh.material.color.getHex();
-    }
-    mesh.material.transparent = true;
-    mesh.material.opacity = 0.35;
-    mesh.material.depthWrite = false;
-    mesh.material.color.set(0xd64545);
-  } else {
-    mesh.material.transparent = false;
-    mesh.material.opacity = 1;
-    mesh.material.depthWrite = true;
-    if (mesh.userData._prevColor != null) {
-      mesh.material.color.set(mesh.userData._prevColor);
-    }
-  }
+  applyAppearance(mesh);
 }
 
 // ---- gizmo -------------------------------------------------------------------
@@ -422,8 +441,9 @@ function transformsEqual(a, b) {
 }
 
 function setColor(mesh, hex) {
-  mesh.material.color.setHex(hex);
   mesh.userData._prevColor = hex;
+  mesh.material.color.setHex(hex);
+  applyAppearance(mesh);
 }
 
 function commandAdd(mesh) {
@@ -504,6 +524,21 @@ function commandHole(meshes, beforeIsHole, afterIsHole) {
   return {
     undo: () => meshes.forEach((m, i) => setHole(m, beforeIsHole[i])),
     redo: () => meshes.forEach((m, i) => setHole(m, afterIsHole[i])),
+  };
+}
+
+function commandTransparent(meshes, before, after) {
+  return {
+    undo: () =>
+      meshes.forEach((m, i) => {
+        m.userData.transparent = before[i];
+        applyAppearance(m);
+      }),
+    redo: () =>
+      meshes.forEach((m, i) => {
+        m.userData.transparent = after[i];
+        applyAppearance(m);
+      }),
   };
 }
 
@@ -656,6 +691,19 @@ function onToggleHole(isHole) {
   scheduleSave();
 }
 
+function onToggleTransparent(isTransparent) {
+  const meshes = state.selected.flatMap(getMeshes);
+  if (!meshes.length) return;
+  const before = meshes.map((m) => m.userData.transparent === true);
+  meshes.forEach((m) => {
+    m.userData.transparent = isTransparent;
+    applyAppearance(m);
+  });
+  history.push(commandTransparent(meshes, before, meshes.map(() => isTransparent)));
+  updateHistoryUI();
+  scheduleSave();
+}
+
 function onDelete() {
   const objects = [...state.selected];
   if (!objects.length) return;
@@ -742,9 +790,7 @@ function pasteClipboard() {
     o.position.z += state.snap;
     scene.add(o);
     state.shapes.push(o);
-    getMeshes(o).forEach((m) => {
-      if (!m.userData.solid) setHole(m, true);
-    });
+    getMeshes(o).forEach((m) => applyAppearance(m));
   });
 
   interaction.setSelected(objects);
@@ -1298,9 +1344,7 @@ if (loaded && loaded.length) {
   loaded.forEach((obj) => {
     scene.add(obj);
     state.shapes.push(obj);
-    getMeshes(obj).forEach((m) => {
-      if (!m.userData.solid) setHole(m, true);
-    });
+    getMeshes(obj).forEach((m) => applyAppearance(m));
   });
 } else {
   seedDemo();

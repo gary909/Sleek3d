@@ -35,6 +35,7 @@ function objectToJSON(object) {
       // color lives in `_prevColor`.
       color: object.userData._prevColor ?? object.material.color.getHex(),
       solid: object.userData.solid !== false,
+      transparent: object.userData.transparent === true,
       shapeType: object.userData.shapeType ?? 'combined',
       params: object.userData.params ?? null,
       geometry: geometryToJSON(object.geometry),
@@ -67,6 +68,7 @@ function objectFromJSON(json) {
     mesh.rotation.setFromQuaternion(mesh.quaternion);
     mesh.userData = {
       solid: json.solid,
+      transparent: json.transparent === true,
       shapeType: json.shapeType ?? 'combined',
       params: json.params ?? null,
     };
