@@ -111,39 +111,73 @@ export function createUI({
     const current = { ...(object.userData.params || {}) };
     def.params.forEach((spec) => {
       const isLength = spec.unit !== false;
+      const valueMm = current[spec.key] ?? spec.min;
+
+      // Values are stored in mm internally; the slider/field work in the selected unit.
+      const format = (mmValue) =>
+        isLength ? formatLength(mmValue, settings) : String(Math.round(mmValue));
+      const toDisplay = (mmValue) => (isLength ? fromMm(mmValue, settings) : mmValue);
+      const fromDisplay = (displayValue) => (isLength ? toMm(displayValue, settings) : displayValue);
+
       const row = document.createElement('div');
-      row.className = 'row';
+      row.className = 'dim-row';
 
       const label = document.createElement('label');
       label.textContent = spec.label;
 
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.min = isLength ? fromMm(spec.min, settings) : spec.min;
-      input.max = isLength ? fromMm(spec.max, settings) : spec.max;
-      input.step = isLength ? fromMm(spec.step, settings) : spec.step;
-      input.value = isLength
-        ? formatLength(current[spec.key] ?? spec.min, settings)
-        : String(current[spec.key] ?? spec.min);
+      const field = document.createElement('input');
+      field.type = 'text';
+      field.inputMode = isLength ? 'decimal' : 'numeric';
+      field.className = 'dim-input';
+      field.value = format(valueMm);
 
-      input.addEventListener('input', () => {
-        const raw = Number(input.value);
-        const num = Number.isFinite(raw) ? (isLength ? toMm(raw, settings) : raw) : spec.min;
-        const value = Math.min(spec.max, Math.max(spec.min, num));
-        current[spec.key] = value;
-        onParamChange({ ...current });
-      });
-      input.addEventListener('change', onParamCommit);
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.className = 'dim-slider';
+      slider.min = toDisplay(spec.min);
+      slider.max = toDisplay(spec.max);
+      slider.step = toDisplay(spec.step);
+      slider.value = toDisplay(valueMm);
 
       row.appendChild(label);
-      row.appendChild(input);
-
+      row.appendChild(slider);
+      row.appendChild(field);
       if (isLength) {
         const unitEl = document.createElement('span');
         unitEl.className = 'dim-unit';
         unitEl.textContent = unit;
         row.appendChild(unitEl);
       }
+
+      const setValue = (value, { syncSlider = false, syncField = false } = {}) => {
+        let next = Math.min(spec.max, Math.max(spec.min, value));
+        if (!isLength) next = Math.round(next);
+        current[spec.key] = next;
+        if (syncSlider) slider.value = toDisplay(next);
+        if (syncField) field.value = format(next);
+        onParamChange({ ...current });
+      };
+
+      const readField = () => {
+        const raw = parseFloat(field.value);
+        return Number.isFinite(raw) ? fromDisplay(raw) : null;
+      };
+
+      slider.addEventListener('input', () => {
+        setValue(fromDisplay(parseFloat(slider.value)), { syncField: true });
+      });
+      slider.addEventListener('change', onParamCommit);
+
+      field.addEventListener('input', () => {
+        const mm = readField();
+        if (mm != null) setValue(mm, { syncSlider: true });
+      });
+      field.addEventListener('change', () => {
+        const mm = readField();
+        const next = mm == null ? current[spec.key] : Math.min(spec.max, Math.max(spec.min, mm));
+        field.value = format(!isLength ? Math.round(next) : next);
+        onParamCommit();
+      });
 
       dimContainer.appendChild(row);
     });
