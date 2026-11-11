@@ -55,9 +55,9 @@
         <div id="inspector-body" hidden>
           <div class="row tool-row">
             <span>Tool</span>
-            <button data-mode="translate" class="active">Move</button>
-            <button data-mode="rotate">Rotate</button>
-            <button data-mode="scale">Scale</button>
+            <button data-mode="translate" class="active" data-tip="Move" data-key="W">Move</button>
+            <button data-mode="rotate" data-tip="Rotate" data-key="E">Rotate</button>
+            <button data-mode="scale" data-tip="Scale" data-key="R">Scale</button>
           </div>
           <div class="row">
             <label for="scale">Scale</label>
@@ -68,15 +68,13 @@
             <label for="color">Color</label>
             <input id="color" type="color" value="#4a90d9" />
           </div>
-          <div class="row has-tip">
+          <div class="row" data-tip="Marks shapes as cutters — subtracted when their group is combined" data-key="H">
             <label for="hole">Hole</label>
             <input id="hole" type="checkbox" />
-            <span class="row-tip" role="tooltip">Marks shapes as cutters — shown translucent red and subtracted when their group is combined.</span>
           </div>
-          <div class="row has-tip">
+          <div class="row" data-tip="Shows the shape see-through so you can see what's behind or inside it">
             <label for="transparent">Transparent</label>
             <input id="transparent" type="checkbox" />
-            <span class="row-tip" role="tooltip">Shows the shape see-through so you can see what's behind or inside it.</span>
           </div>
         </div>
       </section>
@@ -145,6 +143,8 @@
         <button id="s-close">Close</button>
       </div>
     </div>
+
+    <div id="tooltip" hidden></div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

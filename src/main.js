@@ -15,7 +15,7 @@ import {
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createInteraction } from './interaction.js';
-import { createUI, createSettingsPanel } from './ui.js';
+import { createUI, createSettingsPanel, initTooltips } from './ui.js';
 import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
@@ -1353,6 +1353,7 @@ renderSnapOptions();
 ui.refresh();
 updateHistoryUI();
 ui.setClipboardState(false);
+initTooltips();
 
 function animate() {
   requestAnimationFrame(animate);

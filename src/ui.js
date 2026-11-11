@@ -297,3 +297,106 @@ export function createSettingsPanel({ settings, onUpdate }) {
     onUpdate({ gridLength: Math.max(1, Math.round(toMm(Number(gridLInput.value) || 0, settings))) })
   );
 }
+
+// A single floating tooltip, shown after a 1s hover delay. Any element with a
+// `data-tip` attribute gets one; an optional `data-key` renders a shortcut chip.
+export function initTooltips() {
+  const tip = document.getElementById('tooltip');
+  if (!tip) return;
+
+  // Convert existing native `title` tooltips into data-tip (+ parsed shortcut).
+  document.querySelectorAll('[title]').forEach((el) => {
+    const title = el.getAttribute('title');
+    el.removeAttribute('title');
+    const match = title.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+    const isShortcut =
+      match &&
+      (/⌘|ctrl|cmd|shift|alt|option|del|esc/i.test(match[2]) ||
+        /^[a-z]$/i.test(match[2].trim()) ||
+        /^f\d+$/i.test(match[2].trim()));
+    if (match && isShortcut) {
+      el.dataset.tip = match[1].trim();
+      el.dataset.key = match[2].trim();
+    } else {
+      el.dataset.tip = title;
+    }
+  });
+
+  // Auto-describe repetitive button groups.
+  document.querySelectorAll('#toolbar .shape').forEach((el) => {
+    if (!el.dataset.tip) el.dataset.tip = 'Add ' + el.textContent.trim().toLowerCase();
+  });
+  document.querySelectorAll('#align [data-align]').forEach((el) => {
+    if (el.dataset.tip) return;
+    const [axis, mode] = el.dataset.align.split(',');
+    el.dataset.tip = `Align ${axis.toUpperCase()} ${mode}`;
+  });
+
+  let timer = null;
+  let current = null;
+
+  const hide = () => {
+    clearTimeout(timer);
+    tip.hidden = true;
+  };
+
+  const show = (el) => {
+    tip.textContent = el.dataset.tip || '';
+    if (el.dataset.key) {
+      const kbd = document.createElement('span');
+      kbd.className = 'kbd';
+      kbd.textContent = el.dataset.key;
+      tip.appendChild(kbd);
+    }
+    tip.hidden = false;
+
+    const r = el.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    const margin = 8;
+    const gap = 6;
+    const cx = r.left + r.width / 2;
+    const left = Math.min(Math.max(cx, w / 2 + margin), window.innerWidth - w / 2 - margin);
+
+    let top = r.top - gap;
+    let transform = 'translate(-50%, -100%)';
+    if (r.top - gap - h < margin) {
+      top = r.bottom + gap;
+      transform = 'translate(-50%, 0)';
+    }
+
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+    tip.style.transform = transform;
+  };
+
+  const activate = (el) => {
+    current = el;
+    clearTimeout(timer);
+    tip.hidden = true;
+    timer = setTimeout(() => show(el), 1000);
+  };
+
+  document.addEventListener('pointerover', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (el && el !== current) activate(el);
+  });
+
+  document.addEventListener('pointerout', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (!el || el !== current) return;
+    if (e.relatedTarget && el.contains(e.relatedTarget)) return;
+    current = null;
+    hide();
+  });
+
+  document.addEventListener('pointerdown', () => {
+    current = null;
+    hide();
+  }, true);
+
+  window.addEventListener('scroll', () => {
+    current = null;
+    hide();
+  }, true);
+}
