@@ -82,6 +82,31 @@ export function createGround(scene) {
   major.position.y = 0.006;
   gridGroup.add(major);
 
+  // A slightly darker frame around the grid edge so the working bounds read clearly.
+  const half = 40 / 2;
+  const edge = 0.25;
+  const inner = half - edge;
+  const frame = new THREE.Shape();
+  frame.moveTo(-half, -half);
+  frame.lineTo(half, -half);
+  frame.lineTo(half, half);
+  frame.lineTo(-half, half);
+  frame.lineTo(-half, -half);
+  const frameHole = new THREE.Path();
+  frameHole.moveTo(-inner, inner);
+  frameHole.lineTo(inner, inner);
+  frameHole.lineTo(inner, -inner);
+  frameHole.lineTo(-inner, -inner);
+  frameHole.lineTo(-inner, inner);
+  frame.holes.push(frameHole);
+  const border = new THREE.Mesh(
+    new THREE.ShapeGeometry(frame),
+    new THREE.MeshBasicMaterial({ color: 0x7f8a98, side: THREE.DoubleSide })
+  );
+  border.rotation.x = -Math.PI / 2;
+  border.position.y = 0.01;
+  gridGroup.add(border);
+
   return { ground, gridGroup };
 }
 
