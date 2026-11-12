@@ -44,6 +44,79 @@ measureSprite.renderOrder = 999;
 measureSprite.visible = false;
 scene.add(measureSprite);
 
+// Text labels printed flat on the grid (scale with the grid, hide with it).
+const GRID_LABEL_W = 6; // base plane width (world units, before grid scaling)
+const UNIT_LABEL_FRAC = 0.12; // unit label width as a fraction of the grid width
+const TITLE_LABEL_FRAC = 0.2; // "Sleek3D" — bigger
+
+function createGridLabel(text, { fontPx = 44, weight = 'bold', spacing = 0, aspect = 4, stroke = 0 } = {}) {
+  const canvasH = 64;
+  const canvasW = Math.round(canvasH * aspect);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+
+  const baseW = GRID_LABEL_W;
+  const baseH = baseW / aspect;
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(baseW, baseH),
+    new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: THREE.DoubleSide })
+  );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.renderOrder = 1;
+  scene.add(mesh);
+
+  const draw = (txt) => {
+    const cx = canvasW / 2;
+    const cy = canvasH / 2;
+    ctx.clearRect(0, 0, canvasW, canvasH);
+    ctx.fillStyle = '#4a525c';
+    ctx.font = `${weight} ${fontPx}px ui-monospace, Menlo, Consolas, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${spacing}px`;
+    if (stroke > 0) {
+      ctx.lineWidth = stroke;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#4a525c';
+      ctx.strokeText(txt, cx, cy);
+    }
+    ctx.fillText(txt, cx, cy);
+    texture.needsUpdate = true;
+  };
+
+  draw(text);
+  return { mesh, draw, baseW, baseH };
+}
+
+const unitLabel = createGridLabel('Unit: mm');
+const titleLabel = createGridLabel('Sleek 3D', {
+  fontPx: 52,
+  weight: '900',
+  spacing: 2,
+  aspect: 5,
+  stroke: 3,
+});
+
+// Lie flat near a corner (cornerX -1 = left / 1 = right, cornerZ 1 = near) at a
+// width that's `frac` of the grid, so it scales with the grid.
+function layoutGridLabel(label, s, frac, cornerX, cornerZ) {
+  const labelW = s.gridWidth * frac;
+  const scale = labelW / label.baseW;
+  const labelD = label.baseH * scale;
+  const inset = 0.5 * scale;
+  label.mesh.scale.setScalar(scale);
+  label.mesh.position.set(
+    cornerX * (s.gridWidth / 2 - labelW / 2 - inset),
+    0.03,
+    cornerZ * (s.gridLength / 2 - labelD / 2 - inset)
+  );
+  label.mesh.visible = s.grid;
+}
+
 // Ruler overlays: a floating readout chip plus mode-specific 3D guides shown
 // while a shape is being moved / rotated / scaled.
 const rulerGroup = new THREE.Group();
@@ -1314,6 +1387,11 @@ function applySettings(s) {
   lights.sun.castShadow = s.shadows;
   gridGroup.visible = s.grid;
   gridGroup.scale.set(s.gridWidth / GRID_BASE_SIZE, 1, s.gridLength / GRID_BASE_SIZE);
+
+  // Grid labels lie flat near the corners and scale with the grid.
+  unitLabel.draw('Unit: ' + getUnit(s));
+  layoutGridLabel(unitLabel, s, UNIT_LABEL_FRAC, 1, 1); // lower-right
+  layoutGridLabel(titleLabel, s, TITLE_LABEL_FRAC, -1, 1); // lower-left
 }
 
 function updateSetting(changes) {
