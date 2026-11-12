@@ -11,7 +11,7 @@ ___________________________________________
 
 TO DO:
 
-add mm/cm text to grid for easier view
+
 
 Add shape icons to shape text
 
@@ -42,6 +42,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+add mm/cm text to grid for easier view
 
 Text Tool Tips
 
