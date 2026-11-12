@@ -208,6 +208,17 @@ const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
 handleResize(renderer, camera, container);
 
+// Zoom in / out buttons (top of the toolbar). factor < 1 moves the camera closer.
+function zoomView(factor) {
+  const offset = camera.position.clone().sub(controls.target);
+  const dist = offset.length() * factor;
+  offset.setLength(Math.max(controls.minDistance, Math.min(controls.maxDistance, dist)));
+  camera.position.copy(controls.target).add(offset);
+  controls.update();
+}
+document.getElementById('zoom-in').addEventListener('click', () => zoomView(0.85));
+document.getElementById('zoom-out').addEventListener('click', () => zoomView(1 / 0.85));
+
 // Settings (loaded from localStorage and applied to the scene).
 const settings = loadSettings();
 applySettings(settings);

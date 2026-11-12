@@ -19,8 +19,6 @@ option for reference image?
 
 Colours: add predefined pallettes
 
-Zoom In/Out buttons
-
 Toggle to orthographic view (flat view)
 
 initial view reset button
@@ -42,6 +40,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+Zoom In/Out buttons
 
 Object box now drop down
 
