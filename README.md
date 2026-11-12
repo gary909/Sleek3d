@@ -43,6 +43,8 @@ ________________________________________
 
 DONE:
 
+Object box now drop down
+
 add mm/cm text to grid for easier view
 
 Text Tool Tips

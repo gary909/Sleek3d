@@ -56,6 +56,16 @@ export function createUI({
     btn.addEventListener('click', () => onAdd(btn.dataset.shape));
   });
 
+  const shapesToggle = document.getElementById('shapes-toggle');
+  const shapeList = document.getElementById('shape-list');
+  if (shapesToggle && shapeList) {
+    shapesToggle.addEventListener('click', () => {
+      const willOpen = shapeList.hidden;
+      shapeList.hidden = !willOpen;
+      shapesToggle.setAttribute('aria-expanded', String(willOpen));
+    });
+  }
+
   modeBtns.forEach((btn) => {
     btn.addEventListener('click', () => onSetMode(btn.dataset.mode));
   });

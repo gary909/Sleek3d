@@ -34,18 +34,23 @@
     </nav>
 
     <aside id="toolbar">
-      <h2>Add shape</h2>
-      <button class="shape" data-shape="box">Box</button>
-      <button class="shape" data-shape="cylinder">Cylinder</button>
-      <button class="shape" data-shape="sphere">Sphere</button>
-      <button class="shape" data-shape="cone">Cone</button>
-      <button class="shape" data-shape="torus">Torus</button>
-      <button class="shape" data-shape="wedge">Wedge</button>
-      <button class="shape" data-shape="pyramid">Pyramid</button>
-      <button class="shape" data-shape="hemisphere">Hemisphere</button>
-      <button class="shape" data-shape="prism">Prism</button>
-      <button class="shape" data-shape="star">Star</button>
-      <button class="shape" data-shape="text">Text</button>
+      <button id="shapes-toggle" class="shapes-toggle" type="button" aria-expanded="false" aria-controls="shape-list" data-tip="Show or hide the shapes you can add">
+        <span>Add shape</span>
+        <span class="chevron" aria-hidden="true">▸</span>
+      </button>
+      <div id="shape-list" hidden>
+        <button class="shape" data-shape="box">Cube</button>
+        <button class="shape" data-shape="cylinder">Cylinder</button>
+        <button class="shape" data-shape="sphere">Sphere</button>
+        <button class="shape" data-shape="cone">Cone</button>
+        <button class="shape" data-shape="torus">Torus</button>
+        <button class="shape" data-shape="wedge">Wedge</button>
+        <button class="shape" data-shape="pyramid">Pyramid</button>
+        <button class="shape" data-shape="hemisphere">Hemisphere</button>
+        <button class="shape" data-shape="prism">Prism</button>
+        <button class="shape" data-shape="star">Star</button>
+        <button class="shape" data-shape="text">Text</button>
+      </div>
     </aside>
 
     <aside id="panel">
