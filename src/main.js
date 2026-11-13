@@ -27,7 +27,10 @@ const container = document.getElementById('app');
 
 const renderer = createRenderer(container);
 const scene = createScene();
-const camera = createCamera(container);
+let camera = createCamera(container);
+const perspectiveCamera = camera;
+let orthoCamera = null;
+let isOrtho = false;
 const lights = createLights(scene);
 const { gridGroup } = createGround(scene);
 applyEnvironment(renderer, scene);
@@ -208,12 +211,12 @@ rulerGroup.add(rulerSprite);
 const controls = createControls(camera, renderer.domElement);
 const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
-handleResize(renderer, camera, container);
+handleResize(renderer, () => camera, container);
 
 // Smooth camera transitions for the view buttons (home / fit / zoom).
 let viewTween = null;
-function flyTo(pos, tgt, ms = 380) {
-  viewTween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: tgt.clone(), s: performance.now(), ms };
+function flyTo(pos, tgt, ms = 380, zoom = null) {
+  viewTween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: tgt.clone(), s: performance.now(), ms, z0: camera.zoom, z1: zoom === null ? camera.zoom : zoom };
 }
 function updateViewTween(now) {
   if (!viewTween) return;
@@ -222,12 +225,21 @@ function updateViewTween(now) {
   const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
   camera.position.lerpVectors(v.p0, v.p1, e);
   controls.target.lerpVectors(v.t0, v.t1, e);
+  if (v.z0 !== v.z1) {
+    camera.zoom = v.z0 + (v.z1 - v.z0) * e;
+    camera.updateProjectionMatrix();
+  }
   if (k >= 1) viewTween = null;
 }
 controls.addEventListener("start", () => { viewTween = null; });
 
 // Zoom in / out buttons (top of the toolbar). factor < 1 moves the camera closer.
 function zoomView(factor) {
+  if (camera.isOrthographicCamera) {
+    const z = Math.max(0.05, Math.min(50, camera.zoom / factor));
+    flyTo(camera.position, controls.target, 200, z);
+    return;
+  }
   const offset = camera.position.clone().sub(controls.target);
   const dist = offset.length() * factor;
   offset.setLength(Math.max(controls.minDistance, Math.min(controls.maxDistance, dist)));
@@ -238,9 +250,57 @@ document.getElementById('zoom-out').addEventListener('click', () => zoomView(1 /
 
 // Reset the camera to the default ("home") view.
 function resetView() {
-  flyTo(HOME_CAMERA_POSITION, HOME_TARGET);
+  if (camera.isOrthographicCamera) {
+    const d = HOME_CAMERA_POSITION.distanceTo(HOME_TARGET);
+    const desired = 2 * Math.tan(THREE.MathUtils.degToRad(perspectiveCamera.fov) / 2) * d;
+    const z = (orthoCamera.top - orthoCamera.bottom) / desired;
+    flyTo(HOME_CAMERA_POSITION, HOME_TARGET, 380, z);
+  } else {
+    flyTo(HOME_CAMERA_POSITION, HOME_TARGET);
+  }
 }
 document.getElementById('home-view').addEventListener('click', resetView);
+
+// Toggle between perspective and orthographic (flat) views.
+const projBtn = document.getElementById("projection-view");
+
+function setActiveCamera(cam) {
+  camera = cam;
+  controls.object = cam;
+  transformControls.camera = cam;
+  interaction.setCamera(cam);
+  cam.updateProjectionMatrix();
+  controls.update();
+}
+
+function toggleProjection() {
+  viewTween = null;
+  const target = controls.target.clone();
+  const dir = camera.position.clone().sub(target);
+  const dist = dir.length() || 1;
+  dir.normalize();
+  const aspect = container.clientWidth / container.clientHeight;
+  if (!isOrtho) {
+    const h = 2 * Math.tan(THREE.MathUtils.degToRad(perspectiveCamera.fov) / 2) * dist;
+    orthoCamera = new THREE.OrthographicCamera((-h * aspect) / 2, (h * aspect) / 2, h / 2, -h / 2, perspectiveCamera.near, perspectiveCamera.far);
+    orthoCamera.position.copy(target).addScaledVector(dir, dist);
+    orthoCamera.zoom = 1;
+    isOrtho = true;
+    setActiveCamera(orthoCamera);
+  } else {
+    const hEff = (orthoCamera.top - orthoCamera.bottom) / orthoCamera.zoom;
+    const d = (hEff / 2) / Math.tan(THREE.MathUtils.degToRad(perspectiveCamera.fov) / 2);
+    perspectiveCamera.position.copy(target).addScaledVector(dir, d);
+    isOrtho = false;
+    setActiveCamera(perspectiveCamera);
+  }
+  controls.update();
+  projBtn.textContent = isOrtho ? "2D" : "3D";
+  projBtn.dataset.tip = isOrtho ? "Switch to perspective view" : "Switch to flat (orthographic) view";
+  projBtn.classList.toggle("active", isOrtho);
+}
+
+projBtn?.addEventListener("click", toggleProjection);
 
 // Settings (loaded from localStorage and applied to the scene).
 const settings = loadSettings();
@@ -1007,7 +1067,15 @@ function frameObjects(objects) {
   const direction = camera.position.clone().sub(controls.target).normalize();
   const distance = Math.max(radius * 3, 4);
 
-  flyTo(center.clone().addScaledVector(direction, distance), center);
+  if (camera.isOrthographicCamera) {
+    const H = camera.top - camera.bottom;
+    const aspect = (camera.right - camera.left) / H;
+    const pad = 1.2;
+    const z = (Math.min(1, aspect) * H) / (2 * Math.max(radius, 0.001) * pad);
+    flyTo(center.clone().addScaledVector(direction, distance), center, 380, z);
+  } else {
+    flyTo(center.clone().addScaledVector(direction, distance), center);
+  }
 }
 
 // Fit-to-view button: frame the selection, or all objects when nothing is selected.

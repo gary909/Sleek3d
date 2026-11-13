@@ -19,7 +19,7 @@ option for reference image?
 
 Colours: add predefined pallettes
 
-Toggle to orthographic view (flat view)
+
 
 
 
@@ -40,6 +40,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+Toggle to orthographic view (flat view)
 
 initial view reset button
 

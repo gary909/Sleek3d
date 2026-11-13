@@ -28,6 +28,7 @@ export function createInteraction({
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  let viewCamera = camera;
 
   let downX = 0;
   let downY = 0;
@@ -38,7 +39,7 @@ export function createInteraction({
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
+    raycaster.setFromCamera(pointer, viewCamera);
   }
 
   function getMeshes(object) {
@@ -202,7 +203,12 @@ export function createInteraction({
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
 
+  function setCamera(cam) {
+    viewCamera = cam;
+  }
+
   return {
+    setCamera,
     setSelected,
     select,
     applyHighlight,

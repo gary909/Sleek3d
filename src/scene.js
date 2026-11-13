@@ -154,12 +154,19 @@ export function createTransformControls(camera, domElement) {
   return transform;
 }
 
-export function handleResize(renderer, camera, container) {
+export function handleResize(renderer, getCamera, container) {
   function onResize() {
     const w = container.clientWidth;
     const h = container.clientHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    const cam = getCamera();
+    if (cam.isOrthographicCamera) {
+      const halfH = (cam.top - cam.bottom) / 2;
+      cam.left = -halfH * (w / h);
+      cam.right = halfH * (w / h);
+    } else {
+      cam.aspect = w / h;
+    }
+    cam.updateProjectionMatrix();
     renderer.setSize(w, h);
   }
   window.addEventListener('resize', onResize);
