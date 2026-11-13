@@ -210,22 +210,35 @@ const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
 handleResize(renderer, camera, container);
 
+// Smooth camera transitions for the view buttons (home / fit / zoom).
+let viewTween = null;
+function flyTo(pos, tgt, ms = 380) {
+  viewTween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: tgt.clone(), s: performance.now(), ms };
+}
+function updateViewTween(now) {
+  if (!viewTween) return;
+  const v = viewTween;
+  const k = Math.min(1, (now - v.s) / v.ms);
+  const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  camera.position.lerpVectors(v.p0, v.p1, e);
+  controls.target.lerpVectors(v.t0, v.t1, e);
+  if (k >= 1) viewTween = null;
+}
+controls.addEventListener("start", () => { viewTween = null; });
+
 // Zoom in / out buttons (top of the toolbar). factor < 1 moves the camera closer.
 function zoomView(factor) {
   const offset = camera.position.clone().sub(controls.target);
   const dist = offset.length() * factor;
   offset.setLength(Math.max(controls.minDistance, Math.min(controls.maxDistance, dist)));
-  camera.position.copy(controls.target).add(offset);
-  controls.update();
+  flyTo(controls.target.clone().add(offset), controls.target, 200);
 }
 document.getElementById('zoom-in').addEventListener('click', () => zoomView(0.85));
 document.getElementById('zoom-out').addEventListener('click', () => zoomView(1 / 0.85));
 
 // Reset the camera to the default ("home") view.
 function resetView() {
-  camera.position.copy(HOME_CAMERA_POSITION);
-  controls.target.copy(HOME_TARGET);
-  controls.update();
+  flyTo(HOME_CAMERA_POSITION, HOME_TARGET);
 }
 document.getElementById('home-view').addEventListener('click', resetView);
 
@@ -994,9 +1007,7 @@ function frameObjects(objects) {
   const direction = camera.position.clone().sub(controls.target).normalize();
   const distance = Math.max(radius * 3, 4);
 
-  controls.target.copy(center);
-  camera.position.copy(center).addScaledVector(direction, distance);
-  controls.update();
+  flyTo(center.clone().addScaledVector(direction, distance), center);
 }
 
 // Fit-to-view button: frame the selection, or all objects when nothing is selected.
@@ -1465,6 +1476,7 @@ initTooltips();
 
 function animate() {
   requestAnimationFrame(animate);
+  updateViewTween(performance.now());
   controls.update();
   renderer.render(scene, camera);
 }
