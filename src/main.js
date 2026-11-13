@@ -1,3 +1,4 @@
+import { createViewCube } from "./viewcube.js";
 import * as THREE from 'three';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import {
@@ -209,6 +210,7 @@ rulerSprite.renderOrder = 999;
 rulerGroup.add(rulerSprite);
 
 const controls = createControls(camera, renderer.domElement);
+controls.maxPolarAngle = Math.PI - 0.02; // allow the nav cube to reach the bottom face
 const transformControls = createTransformControls(camera, renderer.domElement);
 scene.add(transformControls.getHelper());
 handleResize(renderer, () => camera, container);
@@ -301,6 +303,35 @@ function toggleProjection() {
 }
 
 projBtn?.addEventListener("click", toggleProjection);
+
+// Navigation cube (top-right, left of the inspector).
+function viewFromAxis(axis) {
+  viewTween = null;
+  const target = controls.target.clone();
+  const dist = camera.position.distanceTo(target) || 10;
+  if (!isOrtho) {
+    const h = 2 * Math.tan(THREE.MathUtils.degToRad(perspectiveCamera.fov) / 2) * dist;
+    const aspect = container.clientWidth / container.clientHeight;
+    orthoCamera = new THREE.OrthographicCamera((-h * aspect) / 2, (h * aspect) / 2, h / 2, -h / 2, perspectiveCamera.near, perspectiveCamera.far);
+    orthoCamera.zoom = 1;
+    isOrtho = true;
+    setActiveCamera(orthoCamera);
+    projBtn.textContent = "2D";
+    projBtn.dataset.tip = "Switch to perspective view";
+    projBtn.classList.add("active");
+  }
+  const dir = new THREE.Vector3(axis[0], axis[1], axis[2]).normalize();
+  const pos = target.clone().addScaledVector(dir, dist);
+  flyTo(pos, target, 320, camera.zoom);
+}
+
+const viewCube = createViewCube({
+  mount: document.getElementById("viewcube"),
+  getCamera: () => camera,
+  controls,
+  cancelTween: () => { viewTween = null; },
+  onFaceView: viewFromAxis,
+});
 
 // Settings (loaded from localStorage and applied to the scene).
 const settings = loadSettings();
@@ -1546,6 +1577,7 @@ function animate() {
   requestAnimationFrame(animate);
   updateViewTween(performance.now());
   controls.update();
+  viewCube.update();
   renderer.render(scene, camera);
 }
 animate();

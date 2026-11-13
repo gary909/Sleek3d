@@ -513,3 +513,16 @@ section:first-child {
   width: 100%;
   margin-top: 16px;
 }
+
+#viewcube {
+  position: fixed;
+  top: 64px;
+  right: 282px;
+  width: 128px;
+  height: 128px;
+  z-index: 12;
+  user-select: none;
+}
+#viewcube canvas {
+  display: block;
+}
