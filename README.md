@@ -11,6 +11,7 @@ ___________________________________________
 
 TO DO:
 
+add steps to objects to reduce tri count
 
 
 Add shape icons to shape text
