@@ -21,6 +21,8 @@ export function createInteraction({
   onNudgeEnd,
   onToggleHoleKey,
   onFocus,
+  onZoomIn,
+  onZoomOut,
   onCopy,
   onPaste,
 }) {
@@ -176,6 +178,8 @@ export function createInteraction({
     if (event.key === 'r' || event.key === 'R') onSetMode?.('scale');
     if (event.key === 'h' || event.key === 'H') onToggleHoleKey?.();
     if (event.key === 'f' || event.key === 'F') onFocus?.();
+    if (event.key === '+' || event.key === '=') onZoomIn?.();
+    if (event.key === '-' || event.key === '_') onZoomOut?.();
     if (event.key === 'ArrowLeft') { event.preventDefault(); onNudge?.(-state.snap, 0); }
     if (event.key === 'ArrowRight') { event.preventDefault(); onNudge?.(state.snap, 0); }
     if (event.key === 'ArrowUp') { event.preventDefault(); onNudge?.(0, -state.snap); }

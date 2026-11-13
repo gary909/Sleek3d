@@ -326,7 +326,9 @@ const interaction = createInteraction({
   onNudge,
   onNudgeEnd,
   onToggleHoleKey: toggleHoleShortcut,
-  onFocus: focusSelected,
+  onFocus: fitView,
+  onZoomIn: () => zoomView(0.85),
+  onZoomOut: () => zoomView(1 / 0.85),
   onCopy: copySelected,
   onPaste: pasteClipboard,
 });
@@ -977,10 +979,11 @@ function toggleHoleShortcut() {
   onToggleHole(meshes[0].userData.solid); // flip to opposite of the primary shape
 }
 
-function focusSelected() {
-  if (!state.selected.length) return;
+// Frame the given objects in view (fit the camera to their combined bounds).
+function frameObjects(objects) {
+  if (!objects.length) return;
   const box = new THREE.Box3();
-  state.selected.forEach((o) => {
+  objects.forEach((o) => {
     o.updateWorldMatrix(true, false);
     getMeshes(o).forEach((m) => box.expandByObject(m));
   });
@@ -995,6 +998,12 @@ function focusSelected() {
   camera.position.copy(center).addScaledVector(direction, distance);
   controls.update();
 }
+
+// Fit-to-view button: frame the selection, or all objects when nothing is selected.
+function fitView() {
+  frameObjects(state.selected.length ? state.selected : state.shapes);
+}
+document.getElementById("fit-view").addEventListener("click", fitView);
 
 // ---- alignment ---------------------------------------------------------------
 
