@@ -21,7 +21,7 @@ Colours: add predefined pallettes
 
 Toggle to orthographic view (flat view)
 
-initial view reset button
+
 
 add 3d cube, drag to rotate view
 
@@ -40,6 +40,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+initial view reset button
 
 Zoom In/Out buttons
 

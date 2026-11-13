@@ -11,6 +11,8 @@ import {
   handleResize,
   applyEnvironment,
   GRID_BASE_SIZE,
+  HOME_CAMERA_POSITION,
+  HOME_TARGET,
 } from './scene.js';
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
@@ -218,6 +220,14 @@ function zoomView(factor) {
 }
 document.getElementById('zoom-in').addEventListener('click', () => zoomView(0.85));
 document.getElementById('zoom-out').addEventListener('click', () => zoomView(1 / 0.85));
+
+// Reset the camera to the default ("home") view.
+function resetView() {
+  camera.position.copy(HOME_CAMERA_POSITION);
+  controls.target.copy(HOME_TARGET);
+  controls.update();
+}
+document.getElementById('home-view').addEventListener('click', resetView);
 
 // Settings (loaded from localStorage and applied to the scene).
 const settings = loadSettings();

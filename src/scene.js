@@ -5,6 +5,10 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 export const GRID_BASE_SIZE = 40;
 
+// Default ("home") view the camera resets to.
+export const HOME_CAMERA_POSITION = new THREE.Vector3(9, 8, 13);
+export const HOME_TARGET = new THREE.Vector3(0, 0.6, 0);
+
 export function createRenderer(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -31,8 +35,8 @@ export function createCamera(container) {
     0.1,
     300
   );
-  camera.position.set(9, 8, 13);
-  camera.lookAt(0, 0.5, 0);
+  camera.position.copy(HOME_CAMERA_POSITION);
+  camera.lookAt(HOME_TARGET);
   return camera;
 }
 
@@ -125,7 +129,7 @@ export function applyEnvironment(renderer, scene) {
 
 export function createControls(camera, domElement) {
   const controls = new OrbitControls(camera, domElement);
-  controls.target.set(0, 0.6, 0);
+  controls.target.copy(HOME_TARGET);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.minDistance = 4;
