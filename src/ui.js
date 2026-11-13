@@ -121,7 +121,8 @@ export function createUI({
     const current = { ...(object.userData.params || {}) };
     def.params.forEach((spec) => {
       const isLength = spec.unit !== false;
-      const valueMm = current[spec.key] ?? spec.min;
+      const valueMm = current[spec.key] ?? spec.def ?? spec.min;
+      current[spec.key] = valueMm;
 
       // Values are stored in mm internally; the slider/field work in the selected unit.
       const format = (mmValue) =>

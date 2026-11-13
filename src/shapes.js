@@ -27,26 +27,31 @@ export function createBox({ w = 2, h = 2, d = 2, color = 0x4a90d9 } = {}) {
   return mesh;
 }
 
-export function createCylinder({ r = 1, h = 2, color = 0x59a96a } = {}) {
-  const mesh = build(new THREE.CylinderGeometry(r, r, h, SEGMENTS), color, 'cylinder', { r, h });
+export function createCylinder({ r = 1, h = 2, sides = SEGMENTS, color = 0x59a96a } = {}) {
+  const seg = Math.max(3, Math.round(sides));
+  const mesh = build(new THREE.CylinderGeometry(r, r, h, seg), color, 'cylinder', { r, h, sides: seg });
   mesh.position.y = h / 2;
   return mesh;
 }
 
-export function createSphere({ r = 1, color = 0xf2b134 } = {}) {
-  const mesh = build(new THREE.SphereGeometry(r, SEGMENTS, 32), color, 'sphere', { r });
+export function createSphere({ r = 1, steps = SEGMENTS, color = 0xf2b134 } = {}) {
+  const seg = Math.max(3, Math.round(steps));
+  const heightSeg = Math.max(2, Math.round((seg * 2) / 3));
+  const mesh = build(new THREE.SphereGeometry(r, seg, heightSeg), color, 'sphere', { r, steps: seg });
   mesh.position.y = r;
   return mesh;
 }
 
-export function createCone({ r = 1, h = 2, color = 0xe8844d } = {}) {
-  const mesh = build(new THREE.ConeGeometry(r, h, SEGMENTS), color, 'cone', { r, h });
+export function createCone({ r = 1, h = 2, sides = SEGMENTS, color = 0xe8844d } = {}) {
+  const seg = Math.max(3, Math.round(sides));
+  const mesh = build(new THREE.ConeGeometry(r, h, seg), color, 'cone', { r, h, sides: seg });
   mesh.position.y = h / 2;
   return mesh;
 }
 
-export function createTorus({ r = 1, tube = 0.4, color = 0x9b6dd6 } = {}) {
-  const mesh = build(new THREE.TorusGeometry(r, tube, 24, SEGMENTS), color, 'torus', { r, tube });
+export function createTorus({ r = 1, tube = 0.4, sides = SEGMENTS, color = 0x9b6dd6 } = {}) {
+  const seg = Math.max(3, Math.round(sides));
+  const mesh = build(new THREE.TorusGeometry(r, tube, 24, seg), color, 'torus', { r, tube, sides: seg });
   mesh.position.y = r;
   return mesh;
 }
@@ -64,25 +69,29 @@ export function createWedge({ w = 2, h = 2, d = 2, color = 0x5a9bd4 } = {}) {
   return mesh;
 }
 
-export function createPyramid({ s = 1.4, h = 2, color = 0xe8a33d } = {}) {
-  const geometry = new THREE.ConeGeometry(s, h, 4);
-  geometry.rotateY(Math.PI / 4);
-  const mesh = build(geometry, color, 'pyramid', { s, h });
+export function createPyramid({ s = 1.4, h = 2, sides = 4, color = 0xe8a33d } = {}) {
+  const seg = Math.max(3, Math.round(sides));
+  const geometry = new THREE.ConeGeometry(s, h, seg);
+  geometry.rotateY(Math.PI / seg);
+  const mesh = build(geometry, color, 'pyramid', { s, h, sides: seg });
   mesh.position.y = h / 2;
   return mesh;
 }
 
-export function createHemisphere({ r = 1, color = 0x4aa88a } = {}) {
-  const geometry = new THREE.SphereGeometry(r, SEGMENTS, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-  const mesh = build(geometry, color, 'hemisphere', { r });
+export function createHemisphere({ r = 1, steps = SEGMENTS, color = 0x4aa88a } = {}) {
+  const seg = Math.max(3, Math.round(steps));
+  const heightSeg = Math.max(2, Math.round(seg / 3));
+  const geometry = new THREE.SphereGeometry(r, seg, heightSeg, 0, Math.PI * 2, 0, Math.PI / 2);
+  const mesh = build(geometry, color, 'hemisphere', { r, steps: seg });
   mesh.position.y = 0;
   return mesh;
 }
 
-export function createPrism({ r = 1, h = 2, color = 0x7d6bd4 } = {}) {
-  const geometry = new THREE.CylinderGeometry(r, r, h, 3);
+export function createPrism({ r = 1, h = 2, sides = 3, color = 0x7d6bd4 } = {}) {
+  const seg = Math.max(3, Math.round(sides));
+  const geometry = new THREE.CylinderGeometry(r, r, h, seg);
   geometry.rotateY(Math.PI / 6);
-  const mesh = build(geometry, color, 'prism', { r, h });
+  const mesh = build(geometry, color, 'prism', { r, h, sides: seg });
   mesh.position.y = h / 2;
   return mesh;
 }
@@ -113,18 +122,18 @@ export function createStar({ outer = 1.2, points = 5, d = 0.4, color = 0xedd24a 
 
 // --- registry ----------------------------------------------------------------
 
-const param = (key, label, min, max, step = 0.1, unit = true) => ({ key, label, min, max, step, unit });
+const param = (key, label, min, max, step = 0.1, unit = true, def = min) => ({ key, label, min, max, step, unit, def });
 
 export const SHAPE_DEFS = {
   box: { label: 'Box', factory: createBox, params: [param('w', 'Width', 0.1, 20), param('h', 'Height', 0.1, 20), param('d', 'Depth', 0.1, 20)] },
-  cylinder: { label: 'Cylinder', factory: createCylinder, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20)] },
-  sphere: { label: 'Sphere', factory: createSphere, params: [param('r', 'Radius', 0.1, 10)] },
-  cone: { label: 'Cone', factory: createCone, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20)] },
-  torus: { label: 'Torus', factory: createTorus, params: [param('r', 'Radius', 0.1, 10), param('tube', 'Tube', 0.05, 5, 0.05)] },
+  cylinder: { label: 'Cylinder', factory: createCylinder, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 48)] },
+  sphere: { label: 'Sphere', factory: createSphere, params: [param('r', 'Radius', 0.1, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
+  cone: { label: 'Cone', factory: createCone, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 48)] },
+  torus: { label: 'Torus', factory: createTorus, params: [param('r', 'Radius', 0.1, 10), param('tube', 'Tube', 0.05, 5, 0.05), param('sides', 'Sides', 3, 64, 1, false, 48)] },
   wedge: { label: 'Wedge', factory: createWedge, params: [param('w', 'Width', 0.1, 20), param('h', 'Height', 0.1, 20), param('d', 'Depth', 0.1, 20)] },
-  pyramid: { label: 'Pyramid', factory: createPyramid, params: [param('s', 'Base', 0.1, 10), param('h', 'Height', 0.1, 20)] },
-  hemisphere: { label: 'Hemisphere', factory: createHemisphere, params: [param('r', 'Radius', 0.1, 10)] },
-  prism: { label: 'Prism', factory: createPrism, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20)] },
+  pyramid: { label: 'Pyramid', factory: createPyramid, params: [param('s', 'Base', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 4)] },
+  hemisphere: { label: 'Hemisphere', factory: createHemisphere, params: [param('r', 'Radius', 0.1, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
+  prism: { label: 'Prism', factory: createPrism, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 3)] },
   star: { label: 'Star', factory: createStar, params: [param('outer', 'Size', 0.1, 10), param('points', 'Points', 3, 12, 1, false), param('d', 'Thickness', 0.1, 5)] },
 };
 
