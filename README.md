@@ -24,7 +24,7 @@ Colours: add predefined pallettes
 
 
 
-add 3d cube, drag to rotate view
+
 
 ruler overlay
 
@@ -41,6 +41,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+add 3d cube, drag to rotate view
 
 Toggle to orthographic view (flat view)
 
