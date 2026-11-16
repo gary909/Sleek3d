@@ -304,6 +304,15 @@ function toggleProjection() {
 
 projBtn?.addEventListener("click", toggleProjection);
 
+// Drops the selection straight down onto the work plane (y = 0).
+const dropBtn = document.getElementById("drop-to-plane");
+
+function updateDropButton() {
+  if (dropBtn) dropBtn.disabled = state.selected.length === 0;
+}
+
+dropBtn?.addEventListener("click", dropSelection);
+
 // Navigation cube (top-right, left of the inspector).
 function viewFromAxis(axis) {
   viewTween = null;
@@ -353,6 +362,9 @@ const state = {
 };
 
 const history = createHistory();
+
+// The drop button starts disabled (markup) and follows the selection state.
+updateDropButton();
 
 // "Before" snapshots for continuous inputs (scale slider / color picker) so a
 // whole gesture collapses into a single undo step.
@@ -418,6 +430,7 @@ const interaction = createInteraction({
     ui.refresh();
     syncGizmo();
     updateMeasure();
+    updateDropButton();
   },
   onDelete,
   onSetMode,
@@ -435,6 +448,7 @@ const interaction = createInteraction({
   onZoomOut: () => zoomView(1 / 0.85),
   onCopy: copySelected,
   onPaste: pasteClipboard,
+  onDrop: dropSelection,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -1451,6 +1465,30 @@ function alignSelection(axis, mode) {
     updateHistoryUI();
   }
   scheduleSave();
+}
+
+// Move each selected object straight down so its lowest point rests on the work plane.
+function dropSelection() {
+  const objects = [...state.selected];
+  if (!objects.length) return;
+
+  const before = objects.map(captureTransform);
+  objects.forEach((o) => {
+    const box = objectBox(o);
+    if (!box.isEmpty() && Math.abs(box.min.y) > 1e-6) o.position.y -= box.min.y;
+  });
+  const after = objects.map(captureTransform);
+
+  if (objects.some((o, i) => !transformsEqual(before[i], after[i]))) {
+    history.push({
+      undo: () => objects.forEach((o, i) => applyTransform(o, before[i])),
+      redo: () => objects.forEach((o, i) => applyTransform(o, after[i])),
+    });
+    updateHistoryUI();
+    scheduleSave();
+  }
+  ui.refresh();
+  updateMeasure();
 }
 
 // ---- export / reset / snap --------------------------------------------------

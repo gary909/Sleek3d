@@ -25,6 +25,7 @@ export function createInteraction({
   onZoomOut,
   onCopy,
   onPaste,
+  onDrop,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -179,6 +180,7 @@ export function createInteraction({
     if (event.key === 'r' || event.key === 'R') onSetMode?.('scale');
     if (event.key === 'h' || event.key === 'H') onToggleHoleKey?.();
     if (event.key === 'f' || event.key === 'F') onFocus?.();
+    if (event.key === 'd' || event.key === 'D') onDrop?.();
     if (event.key === '+' || event.key === '=') onZoomIn?.();
     if (event.key === '-' || event.key === '_') onZoomOut?.();
     if (event.key === 'ArrowLeft') { event.preventDefault(); onNudge?.(-state.snap, 0); }

@@ -11,20 +11,13 @@ ___________________________________________
 
 TO DO:
 
-add steps to objects to reduce tri count
-
+add drop to workplane icon
 
 Add shape icons to shape text
 
 option for reference image?
 
 Colours: add predefined pallettes
-
-
-
-
-
-
 
 ruler overlay
 
@@ -41,6 +34,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+add steps to objects to reduce tri count
 
 add 3d cube, drag to rotate view
 
