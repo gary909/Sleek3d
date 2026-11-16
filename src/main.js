@@ -1508,30 +1508,118 @@ const exportDialog = document.getElementById('export-dialog');
 const exportScopeSelect = document.getElementById('export-scope');
 const exportSelectionOption = exportScopeSelect.querySelector('option[value="selection"]');
 const exportFormatButtons = [...document.querySelectorAll('#export-dialog [data-format]')];
+const exportCounts = document.getElementById('export-counts');
+const exportDecimate = document.getElementById('export-decimate');
+const exportDecimateValue = document.getElementById('export-decimate-value');
+const exportDecimated = document.getElementById('export-decimated');
 const exportEmpty = document.getElementById('export-empty');
 const exportTrigger = document.getElementById('export');
+
+const MIN_DECIMATE_TRIS = 24;
+let exportBusy = false;
+let previewTimer = null;
+let previewToken = 0;
+let decimationCache = null;
+let simplifyToolsPromise = null;
 
 function exportObjects() {
   return exportScopeSelect.value === 'selection' ? [...state.selected] : [...state.shapes];
 }
 
+function triCount(geometry) {
+  return Math.round((geometry.index ? geometry.index.count : geometry.attributes.position.count) / 3);
+}
+
+const fmt = (n) => n.toLocaleString();
+
+function collectExportStats(objects) {
+  let verts = 0;
+  let tris = 0;
+  objects.forEach((object) => {
+    getMeshes(object).forEach((mesh) => {
+      const geometry = mesh.geometry;
+      if (!geometry?.attributes?.position) return;
+      verts += geometry.attributes.position.count;
+      tris += triCount(geometry);
+    });
+  });
+  return { verts, tris };
+}
+
 function updateExportState() {
-  const count = exportObjects().length;
-  exportFormatButtons.forEach((btn) => { btn.disabled = count === 0; });
-  exportEmpty.hidden = count > 0;
+  const objects = exportObjects();
+  const stats = collectExportStats(objects);
+  exportCounts.textContent = `Vertices ${fmt(stats.verts)} · Triangles ${fmt(stats.tris)}`;
+
+  const empty = objects.length === 0;
+  exportEmpty.hidden = !empty;
+  exportScopeSelect.disabled = exportBusy;
+  exportDecimate.disabled = exportBusy || empty;
+  exportFormatButtons.forEach((btn) => { btn.disabled = exportBusy || empty; });
+}
+
+function setExportBusy(busy) {
+  exportBusy = busy;
+  if (busy) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
+  exportDialog.setAttribute('aria-busy', String(busy));
+  updateExportState();
+}
+
+// meshoptimizer's WASM is ~55 KB, so only load it when decimation is first used.
+function loadSimplifyTools() {
+  if (!simplifyToolsPromise) {
+    simplifyToolsPromise = Promise.all([
+      import('three/addons/modifiers/SimplifyModifier.js'),
+      import('three/addons/utils/BufferGeometryUtils.js'),
+    ]).then(([modifierModule, utilsModule]) => ({
+      modifier: new modifierModule.SimplifyModifier(),
+      mergeVertices: utilsModule.mergeVertices,
+    })).catch((error) => {
+      simplifyToolsPromise = null;
+      throw error;
+    });
+  }
+  return simplifyToolsPromise;
+}
+
+// Drop the cached decimated group and the geometries we created for it — never
+// the scene's shared geometries.
+function invalidateDecimation() {
+  previewToken += 1;
+  clearTimeout(previewTimer);
+  previewTimer = null;
+  if (decimationCache) {
+    decimationCache.owned.forEach((geometry) => geometry.dispose());
+    decimationCache = null;
+  }
+  if (exportDecimated) {
+    exportDecimated.textContent = '';
+  }
+}
+
+function decimationKey() {
+  return `${exportScopeSelect.value}:${exportDecimate.value}`;
 }
 
 function openExportDialog() {
   const hasSelection = state.selected.length > 0;
   exportSelectionOption.disabled = !hasSelection;
   exportScopeSelect.value = hasSelection ? 'selection' : 'scene';
+  exportDecimate.value = '0';
+  exportDecimateValue.textContent = '0%';
+  invalidateDecimation();
   updateExportState();
   exportModal.hidden = false;
   exportScopeSelect.focus();
 }
 
 function closeExportDialog() {
+  if (exportBusy) return;
   exportModal.hidden = true;
+  invalidateDecimation();
   exportTrigger?.focus();
 }
 
@@ -1542,24 +1630,128 @@ function buildExportGroup() {
   return group;
 }
 
-function downloadExport(format) {
-  if (!exportObjects().length) return;
-  const group = buildExportGroup();
-  const base = exportScopeSelect.value === 'selection' ? 'sleek3d-selection' : 'sleek3d-model';
+// Simplify one cloned mesh. Its geometry may be shared with the scene, so only
+// the new geometries we create are tracked for later disposal.
+async function decimateMesh(mesh, reduction, tools, owned) {
+  const original = mesh.geometry;
+  if (!original?.attributes?.position) return;
+  const tris = triCount(original);
+  if (tris < MIN_DECIMATE_TRIS) return;
 
-  if (format === 'stl') {
-    download(`${base}.stl`, new STLExporter().parse(group), 'model/stl');
-  } else if (format === 'obj') {
-    download(`${base}.obj`, new OBJExporter().parse(group), 'text/plain');
-  } else if (format === 'glb') {
-    new GLTFExporter().parse(
-      group,
-      (result) => download(`${base}.glb`, result, 'model/gltf-binary'),
-      (error) => console.error('GLB export failed:', error),
-      { binary: true }
-    );
+  let temporary = null;
+  try {
+    // Indexed primitives can contain seam-duplicated vertices (UV/normal/cap
+    // seams); weld them first so edges can collapse across those seams.
+    temporary = tools.mergeVertices(original);
+    const welded = temporary;
+    const targetTris = Math.max(MIN_DECIMATE_TRIS, Math.round(tris * (1 - reduction)));
+    const remove = Math.round((1 - targetTris / tris) * welded.attributes.position.count);
+    if (remove <= 0) return;
+
+    const simplified = await tools.modifier.modify(welded, remove);
+    if (simplified?.attributes?.position?.count > 0) {
+      mesh.geometry = simplified;
+      owned.push(simplified);
+    } else {
+      simplified?.dispose();
+    }
+  } catch (error) {
+    console.warn('Decimation failed for a mesh; keeping the original.', error);
+  } finally {
+    temporary?.dispose();
   }
-  exportScopeSelect.focus();
+}
+
+async function buildDecimatedGroup(reduction, token) {
+  const tools = await loadSimplifyTools();
+  if (token !== previewToken) return null;
+
+  const group = buildExportGroup();
+  const owned = [];
+  try {
+    const meshes = [];
+    group.traverse((object) => { if (object.isMesh) meshes.push(object); });
+
+    for (const mesh of meshes) {
+      if (token !== previewToken) break;
+      await decimateMesh(mesh, reduction, tools, owned);
+    }
+    if (token !== previewToken) {
+      owned.forEach((geometry) => geometry.dispose());
+      return null;
+    }
+    return { group, stats: collectExportStats([group]), owned };
+  } catch (error) {
+    owned.forEach((geometry) => geometry.dispose());
+    throw error;
+  }
+}
+
+async function previewDecimation() {
+  const reduction = Number(exportDecimate.value) / 100;
+  if (reduction <= 0 || !exportObjects().length) return;
+
+  const token = previewToken;
+  exportDecimated.textContent = 'Decimating…';
+  try {
+    const result = await buildDecimatedGroup(reduction, token);
+    if (!result || token !== previewToken) return;
+    if (decimationCache) decimationCache.owned.forEach((geometry) => geometry.dispose());
+    decimationCache = { key: decimationKey(), ...result };
+    exportDecimated.textContent = `Decimated: ${fmt(result.stats.verts)} verts · ${fmt(result.stats.tris)} tris`;
+  } catch (error) {
+    console.error('Decimation failed:', error);
+    if (token === previewToken) exportDecimated.textContent = 'Decimation unavailable.';
+  }
+}
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => { previewDecimation(); }, 200);
+}
+
+async function downloadExport(format) {
+  if (exportBusy || !exportObjects().length) return;
+
+  const reduction = Number(exportDecimate.value) / 100;
+  setExportBusy(true);
+
+  try {
+    let group;
+    if (reduction > 0) {
+      const key = decimationKey();
+      if (!decimationCache || decimationCache.key !== key) {
+        const token = ++previewToken;
+        exportDecimated.textContent = 'Decimating…';
+        const result = await buildDecimatedGroup(reduction, token);
+        if (!result) return;
+        if (decimationCache) decimationCache.owned.forEach((geometry) => geometry.dispose());
+        decimationCache = { key, ...result };
+        exportDecimated.textContent = `Decimated: ${fmt(result.stats.verts)} verts · ${fmt(result.stats.tris)} tris`;
+      }
+      group = decimationCache.group;
+    } else {
+      group = buildExportGroup();
+    }
+
+    const base = exportScopeSelect.value === 'selection' ? 'sleek3d-selection' : 'sleek3d-model';
+    if (format === 'stl') {
+      download(`${base}.stl`, new STLExporter().parse(group), 'model/stl');
+    } else if (format === 'obj') {
+      download(`${base}.obj`, new OBJExporter().parse(group), 'text/plain');
+    } else if (format === 'glb') {
+      const result = await new Promise((resolve, reject) => {
+        new GLTFExporter().parse(group, resolve, reject, { binary: true });
+      });
+      download(`${base}.glb`, result, 'model/gltf-binary');
+    }
+  } catch (error) {
+    console.error('Export failed:', error);
+    exportDecimated.textContent = 'Export failed — see console.';
+  } finally {
+    setExportBusy(false);
+    exportScopeSelect.focus();
+  }
 }
 
 function onExport() {
@@ -1571,7 +1763,14 @@ exportModal?.addEventListener('click', (event) => {
   if (event.target === exportModal) closeExportDialog();
 });
 exportScopeSelect?.addEventListener('change', () => {
+  invalidateDecimation();
   updateExportState();
+  if (Number(exportDecimate.value) > 0) schedulePreview();
+});
+exportDecimate?.addEventListener('input', () => {
+  exportDecimateValue.textContent = `${exportDecimate.value}%`;
+  invalidateDecimation();
+  if (Number(exportDecimate.value) > 0) schedulePreview();
 });
 exportFormatButtons.forEach((btn) => {
   btn.addEventListener('click', () => downloadExport(btn.dataset.format));

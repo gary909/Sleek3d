@@ -172,6 +172,14 @@
             <option value="scene">Everything in the scene</option>
           </select>
         </label>
+        <p class="export-stats" id="export-counts">Vertices 0 · Triangles 0</p>
+        <label class="export-decimate" data-tip="Reduces model complexity / tri count">
+          <span>Decimate</span>
+          <input id="export-decimate" type="range" min="0" max="90" step="5" value="0" />
+          <output id="export-decimate-value" for="export-decimate">0%</output>
+        </label>
+        <p class="export-note hint">Decimation affects the exported file only.</p>
+        <p class="export-status hint" id="export-decimated" aria-live="polite"></p>
         <p id="export-empty" class="hint" hidden>There is nothing to export.</p>
         <div class="export-formats">
           <button type="button" data-format="stl">.stl</button>
