@@ -75,11 +75,11 @@ function createGridLabel(text, { fontPx = 44, weight = 'bold', spacing = 0, aspe
   mesh.renderOrder = 1;
   scene.add(mesh);
 
-  const draw = (txt) => {
+  const draw = (txt, color = '#4a525c') => {
     const cx = canvasW / 2;
     const cy = canvasH / 2;
     ctx.clearRect(0, 0, canvasW, canvasH);
-    ctx.fillStyle = '#4a525c';
+    ctx.fillStyle = color;
     ctx.font = `${weight} ${fontPx}px ui-monospace, Menlo, Consolas, monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -87,7 +87,7 @@ function createGridLabel(text, { fontPx = 44, weight = 'bold', spacing = 0, aspe
     if (stroke > 0) {
       ctx.lineWidth = stroke;
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = '#4a525c';
+      ctx.strokeStyle = color;
       ctx.strokeText(txt, cx, cy);
     }
     ctx.fillText(txt, cx, cy);
@@ -106,6 +106,14 @@ const titleLabel = createGridLabel('Sleek 3D', {
   aspect: 5,
   stroke: 3,
 });
+
+// Labels sit on the work-plane background, so pick a text colour that stays
+// legible whether that background is dark or light.
+function gridLabelColor(background) {
+  const c = new THREE.Color(background);
+  const luma = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  return luma > 0.35 ? '#4a525c' : '#c9d2dd';
+}
 
 // Lie flat near a corner (cornerX -1 = left / 1 = right, cornerZ 1 = near) at a
 // width that's `frac` of the grid, so it scales with the grid.
@@ -1567,7 +1575,9 @@ function applySettings(s) {
   gridGroup.scale.set(s.gridWidth / GRID_BASE_SIZE, 1, s.gridLength / GRID_BASE_SIZE);
 
   // Grid labels lie flat near the corners and scale with the grid.
-  unitLabel.draw('Unit: ' + getUnit(s));
+  const labelColor = gridLabelColor(s.background);
+  unitLabel.draw('Unit: ' + getUnit(s), labelColor);
+  titleLabel.draw('Sleek 3D', labelColor);
   layoutGridLabel(unitLabel, s, UNIT_LABEL_FRAC, 1, 1); // lower-right
   layoutGridLabel(titleLabel, s, TITLE_LABEL_FRAC, -1, 1); // lower-left
 }

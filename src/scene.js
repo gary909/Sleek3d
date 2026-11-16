@@ -23,8 +23,8 @@ export function createRenderer(container) {
 
 export function createScene() {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xdde4ec);
-  scene.fog = new THREE.Fog(0xdde4ec, 40, 140);
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.Fog(0x000000, 40, 140);
   return scene;
 }
 

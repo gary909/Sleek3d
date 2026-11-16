@@ -1,12 +1,13 @@
 const STORAGE_KEY = 'sleek3d:settings';
 
 export const DEFAULT_SETTINGS = {
-  background: '#dde4ec',
+  background: '#000000',
   shadows: true,
   grid: true,
   units: 'mm',
   gridWidth: 40,
   gridLength: 40,
+  version: 2,
 };
 
 const UNIT_FACTORS = {
@@ -57,11 +58,19 @@ export function loadSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      const stored = JSON.parse(raw);
+      const settings = { ...DEFAULT_SETTINGS, ...stored };
       // Migrate legacy binary units ('metric'/'imperial') to a specific unit.
       if (settings.units === 'metric') settings.units = 'mm';
       if (settings.units === 'imperial') settings.units = 'in';
       if (!UNIT_FACTORS[settings.units]) settings.units = DEFAULT_SETTINGS.units;
+      // v1 wrote the old light background (#dde4ec) whenever any setting changed.
+      // Treat that exact value as "not customised" so the new black default
+      // applies to existing installs; other colours are kept.
+      if (!stored.version) {
+        if (settings.background === '#dde4ec') settings.background = DEFAULT_SETTINGS.background;
+        settings.version = DEFAULT_SETTINGS.version;
+      }
       return settings;
     }
   } catch {
