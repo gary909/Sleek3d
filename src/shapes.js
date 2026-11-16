@@ -59,12 +59,15 @@ function extrudeOptions(depth, b) {
 // All primitives are created with their base resting on the ground plane (y = 0),
 // so they drop in nicely on the grid.
 
-export function createBox({ w = 2, h = 2, d = 2, bevel = 0, color = 0x4a90d9 } = {}) {
+export function createBox({ w = 2, h = 2, d = 2, bevel = 0, steps = 3, color = 0x4a90d9 } = {}) {
   const b = clampBevel(bevel, Math.min(w, h, d) / 2);
+  // `steps` is how many facets the rounded bevel uses per quarter arc
+  // (1 = a single chamfer facet, higher = smoother).
+  const seg = Math.max(1, Math.min(12, Math.round(steps || 3)));
   const geometry = b > 0
-    ? new RoundedBoxGeometry(w, h, d, 3, b)
+    ? new RoundedBoxGeometry(w, h, d, seg, b)
     : new THREE.BoxGeometry(w, h, d);
-  const mesh = build(geometry, color, 'box', { w, h, d, bevel });
+  const mesh = build(geometry, color, 'box', { w, h, d, bevel, steps: seg });
   mesh.position.y = h / 2;
   return mesh;
 }
@@ -195,7 +198,7 @@ export function createStar({ outer = 1.2, points = 5, d = 0.4, bevel = 0, color 
 const param = (key, label, min, max, step = 0.1, unit = true, def = min) => ({ key, label, min, max, step, unit, def });
 
 export const SHAPE_DEFS = {
-  box: { label: 'Box', factory: createBox, params: [param('w', 'Width', 0.1, 20), param('h', 'Height', 0.1, 20), param('d', 'Depth', 0.1, 20), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
+  box: { label: 'Box', factory: createBox, params: [param('w', 'Width', 0.1, 20), param('h', 'Height', 0.1, 20), param('d', 'Depth', 0.1, 20), param('bevel', 'Bevel', 0, 2, 0.1, true, 0), param('steps', 'Steps', 1, 8, 1, false, 3)] },
   cylinder: { label: 'Cylinder', factory: createCylinder, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 48), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
   sphere: { label: 'Sphere', factory: createSphere, params: [param('r', 'Radius', 0.1, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
   cone: { label: 'Cone', factory: createCone, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 48), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
