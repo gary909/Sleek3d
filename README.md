@@ -27,11 +27,11 @@ front panel designer mode?
 
 Option to add textures to objects? Could have this as a separate page/software?
 
-Export...  opens window with .stl, .obj file export etc. View tri amount, option to decimate
-
 ________________________________________
 
 DONE:
+
+Export...  opens window with .stl, .obj file export etc. View tri amount, option to decimate
 
 Add shape icons to shape text
 

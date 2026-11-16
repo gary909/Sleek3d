@@ -28,7 +28,7 @@
 
       <div class="nav-right">
         <button id="new" title="New project">New</button>
-        <button id="export" title="Export STL">Export STL</button>
+        <button id="export" title="Export">Export</button>
         <button id="reset" title="Reset demo">Reset demo</button>
       </div>
     </nav>
@@ -156,6 +156,28 @@
           <span class="field-group"><input id="s-gridl" type="number" min="1" /><span class="field-unit" id="s-gridl-unit">mm</span></span>
         </div>
         <button id="s-close">Close</button>
+      </div>
+    </div>
+
+    <div id="export-modal" hidden>
+      <div id="export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-title" tabindex="-1">
+        <div class="export-head">
+          <h2 id="export-title">Export</h2>
+          <button id="export-close" class="export-close" type="button" aria-label="Close" title="Close">×</button>
+        </div>
+        <label class="export-scope">
+          <span>What to export</span>
+          <select id="export-scope">
+            <option value="selection">Selected shape</option>
+            <option value="scene">Everything in the scene</option>
+          </select>
+        </label>
+        <p id="export-empty" class="hint" hidden>There is nothing to export.</p>
+        <div class="export-formats">
+          <button type="button" data-format="stl">.stl</button>
+          <button type="button" data-format="obj">.obj</button>
+          <button type="button" data-format="glb">gltf (.glb)</button>
+        </div>
       </div>
     </div>
 

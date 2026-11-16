@@ -1,6 +1,8 @@
 import { createViewCube } from "./viewcube.js";
 import * as THREE from 'three';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import {
   createRenderer,
   createScene,
@@ -1499,16 +1501,89 @@ function dropSelection() {
   updateMeasure();
 }
 
-// ---- export / reset / snap --------------------------------------------------
+// ---- export -----------------------------------------------------------------
+
+const exportModal = document.getElementById('export-modal');
+const exportDialog = document.getElementById('export-dialog');
+const exportScopeSelect = document.getElementById('export-scope');
+const exportSelectionOption = exportScopeSelect.querySelector('option[value="selection"]');
+const exportFormatButtons = [...document.querySelectorAll('#export-dialog [data-format]')];
+const exportEmpty = document.getElementById('export-empty');
+const exportTrigger = document.getElementById('export');
+
+function exportObjects() {
+  return exportScopeSelect.value === 'selection' ? [...state.selected] : [...state.shapes];
+}
+
+function updateExportState() {
+  const count = exportObjects().length;
+  exportFormatButtons.forEach((btn) => { btn.disabled = count === 0; });
+  exportEmpty.hidden = count > 0;
+}
+
+function openExportDialog() {
+  const hasSelection = state.selected.length > 0;
+  exportSelectionOption.disabled = !hasSelection;
+  exportScopeSelect.value = hasSelection ? 'selection' : 'scene';
+  updateExportState();
+  exportModal.hidden = false;
+  exportScopeSelect.focus();
+}
+
+function closeExportDialog() {
+  exportModal.hidden = true;
+  exportTrigger?.focus();
+}
+
+function buildExportGroup() {
+  const group = new THREE.Group();
+  exportObjects().forEach((o) => group.add(o.clone(true)));
+  group.updateMatrixWorld(true);
+  return group;
+}
+
+function downloadExport(format) {
+  if (!exportObjects().length) return;
+  const group = buildExportGroup();
+  const base = exportScopeSelect.value === 'selection' ? 'sleek3d-selection' : 'sleek3d-model';
+
+  if (format === 'stl') {
+    download(`${base}.stl`, new STLExporter().parse(group), 'model/stl');
+  } else if (format === 'obj') {
+    download(`${base}.obj`, new OBJExporter().parse(group), 'text/plain');
+  } else if (format === 'glb') {
+    new GLTFExporter().parse(
+      group,
+      (result) => download(`${base}.glb`, result, 'model/gltf-binary'),
+      (error) => console.error('GLB export failed:', error),
+      { binary: true }
+    );
+  }
+  exportScopeSelect.focus();
+}
 
 function onExport() {
-  const exporter = new STLExporter();
-  const group = new THREE.Group();
-  state.shapes.forEach((o) => group.add(o.clone(true)));
-  group.updateMatrixWorld(true);
-  const data = exporter.parse(group);
-  download('sleek3d-model.stl', data);
+  openExportDialog();
 }
+
+document.getElementById('export-close')?.addEventListener('click', closeExportDialog);
+exportModal?.addEventListener('click', (event) => {
+  if (event.target === exportModal) closeExportDialog();
+});
+exportScopeSelect?.addEventListener('change', () => {
+  updateExportState();
+});
+exportFormatButtons.forEach((btn) => {
+  btn.addEventListener('click', () => downloadExport(btn.dataset.format));
+});
+// Runs after the focused control has handled the key (bubble phase), then keeps
+// scene shortcuts (undo, delete, tool keys…) from firing behind the dialog.
+exportDialog?.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeExportDialog();
+  event.stopPropagation();
+});
+
+// ---- reset / snap -----------------------------------------------------------
 
 function onReset() {
   [...state.shapes].forEach(removeShape);
@@ -1524,8 +1599,8 @@ function onSnap(value) {
   transformControls.setTranslationSnap(value);
 }
 
-function download(filename, text) {
-  const blob = new Blob([text], { type: 'model/stl' });
+function download(filename, data, type = 'application/octet-stream') {
+  const blob = new Blob([data], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1533,7 +1608,7 @@ function download(filename, text) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---- seeded demo ------------------------------------------------------------
