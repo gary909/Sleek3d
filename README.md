@@ -11,7 +11,7 @@ ___________________________________________
 
 TO DO:
 
-Add shape icons to shape text
+
 
 option for reference image?
 
@@ -32,6 +32,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+Add shape icons to shape text
 
 add drop to workplane icon
 
