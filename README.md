@@ -11,8 +11,6 @@ ___________________________________________
 
 TO DO:
 
-add drop to workplane icon
-
 Add shape icons to shape text
 
 option for reference image?
@@ -34,6 +32,8 @@ Export...  opens window with .stl, .obj file export etc. View tri amount, option
 ________________________________________
 
 DONE:
+
+add drop to workplane icon
 
 add steps to objects to reduce tri count
 
