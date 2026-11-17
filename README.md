@@ -11,15 +11,13 @@ ___________________________________________
 
 TO DO:
 
-
+Add import 
 
 option for reference image?
 
 Colours: add predefined pallettes
 
 ruler overlay
-
-import?
 
 improve grid...  1cm as 1mm squares etc
 
