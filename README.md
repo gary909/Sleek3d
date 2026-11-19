@@ -27,6 +27,8 @@ ________________________________________
 
 DONE:
 
+stop grid fade on outer-zoom
+
 improved grid...  1cm as 1mm squares etc
 
 option for reference image?

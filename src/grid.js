@@ -55,11 +55,9 @@ function palette(background) {
 
 const VERTEX_SHADER = [
   "out vec2 vUv;",
-  "out float vDist;",
   "void main() {",
   "  vUv = uv;",
   "  vec4 mv = modelViewMatrix * vec4(position, 1.0);",
-  "  vDist = -mv.z;",
   "  gl_Position = projectionMatrix * mv;",
   "}",
 ].join("\n");
@@ -67,7 +65,6 @@ const VERTEX_SHADER = [
 const FRAGMENT_SHADER = [
   "precision highp float;",
   "in vec2 vUv;",
-  "in float vDist;",
   "out vec4 fragColor;",
   "uniform vec2 uSize;",
   "uniform float uThinStep;",
@@ -83,8 +80,6 @@ const FRAGMENT_SHADER = [
   "uniform vec3 uMidColor;",
   "uniform vec3 uCoarseColor;",
   "uniform vec3 uBorderColor;",
-  "uniform float uFadeNear;",
-  "uniform float uFadeFar;",
   "uniform float uPxPerUnit;",
   "float tier(vec2 mm, vec2 px, float step, float width) {",
   "  vec2 d = abs(fract(mm / step + 0.5) - 0.5) * step;",
@@ -109,13 +104,11 @@ const FRAGMENT_SHADER = [
   "  color = mix(color, uMidColor, cMid);",
   "  color = mix(color, uCoarseColor, cCoarse);",
   "  color = mix(color, uBorderColor, cBorder);",
-  "  alpha *= 1.0 - smoothstep(uFadeNear, uFadeFar, vDist);",
   "  fragColor = vec4(color, max(alpha, 0.0));",
   "}",
 ].join("\n");
 
 function createMaterial({ width, length, steps, colors }) {
-  const max = Math.max(width, length);
   return new THREE.ShaderMaterial({
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
@@ -142,8 +135,6 @@ function createMaterial({ width, length, steps, colors }) {
       uMidColor: { value: colors.mid },
       uCoarseColor: { value: colors.coarse },
       uBorderColor: { value: colors.border },
-      uFadeNear: { value: max * 1.1 },
-      uFadeFar: { value: max * 2.8 },
       uPxPerUnit: { value: 1.0 },
     },
   });
