@@ -20,6 +20,8 @@ import {
 } from './scene.js';
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
+import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeRuler, hideResizeRuler } from './resizeFrame.js';
+import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale } from './selectionResize.js';
 import { createInteraction } from './interaction.js';
 import { createUI, createSettingsPanel, initTooltips } from './ui.js';
 import { createHistory } from './history.js';
@@ -59,6 +61,10 @@ const measureSprite = new THREE.Sprite(
 measureSprite.renderOrder = 999;
 measureSprite.visible = false;
 scene.add(measureSprite);
+
+// Tinkercad-style resize frame drawn around the current selection.
+const resizeFrame = createResizeFrame();
+scene.add(resizeFrame.group);
 
 // Text labels printed flat on the grid (scale with the grid, hide with it).
 const GRID_LABEL_W = 6; // base plane width (world units, before grid scaling)
@@ -482,6 +488,11 @@ const interaction = createInteraction({
   onCopy: copySelected,
   onPaste: pasteClipboard,
   onDrop: dropSelection,
+  pickFrameHandle: (raycaster) => (selectionFrameVisible() ? pickResizeHandle(resizeFrame, raycaster) : null),
+  onFrameHover: frameHandleHover,
+  onFrameDragStart: frameDragStart,
+  onFrameDragMove: frameDragMove,
+  onFrameDragEnd: frameDragEnd,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -676,7 +687,8 @@ function onToggleLock() {
 
 function syncGizmo() {
   const target = state.selected[0] ?? null;
-  if (target && target.userData.locked !== true) {
+  // In scale mode the on-canvas frame handles do the resizing, so the arrow gizmo steps aside.
+  if (target && target.userData.locked !== true && transformControls.mode !== "scale") {
     if (transformControls.object !== target) transformControls.attach(target);
   } else {
     transformControls.detach();
@@ -685,6 +697,7 @@ function syncGizmo() {
 
 function onSetMode(mode) {
   transformControls.setMode(mode);
+  syncGizmo();
   ui.setActiveMode(mode);
   updateRotationSnap();
 }
@@ -1410,6 +1423,182 @@ function updateMeasure() {
   measureSprite.scale.set(worldHeight * (w / h), worldHeight, 1);
   measureSprite.visible = true;
 }
+
+// ---- resize frame -----------------------------------------------------------
+
+const FRAME_MIN_SIZE = 1;
+let frameDrag = null;
+
+function frameHandleSize() {
+  return Math.max(2, labelWorldHeight() * 0.55);
+}
+
+function selectionFrameVisible() {
+  return state.selected.length > 0 && lockedSelection() === false;
+}
+
+function updateFrameFromSelection() {
+  const box = state.selected.length ? unionBounds(state.selected) : null;
+  updateResizeFrame(resizeFrame, {
+    box,
+    camera,
+    viewportHeight: renderer.domElement.clientHeight,
+    visible: selectionFrameVisible(),
+  });
+  if (selectionFrameVisible() === false) renderer.domElement.style.cursor = "";
+}
+
+function showHandleRuler(id, box) {
+  const size = frameHandleSize();
+  const y = box.min.y + 0.02;
+  const unit = getUnit(settings);
+  const fmt = (v) => formatLength(v, settings) + " " + unit;
+  const point = cornerPoints(box)[id];
+  if (id === "top") {
+    const centre = box.getCenter(new THREE.Vector3());
+    showResizeRuler(resizeFrame, {
+      text: "H " + fmt(box.max.y - box.min.y),
+      from: new THREE.Vector3(centre.x, box.min.y, centre.z),
+      to: new THREE.Vector3(centre.x, box.max.y, centre.z),
+      chipOffset: new THREE.Vector3(size * 3.2, 0, 0),
+      size,
+    });
+    return;
+  }
+  if (!point) return;
+  const oppositeX = id === "nw" || id === "sw" ? box.max.x : box.min.x;
+  showResizeRuler(resizeFrame, {
+    text: "W " + fmt(box.max.x - box.min.x) + "  ·  D " + fmt(box.max.z - box.min.z),
+    from: new THREE.Vector3(point.x, y, point.z),
+    to: new THREE.Vector3(oppositeX, y, point.z),
+    chipOffset: new THREE.Vector3(0, size * 1.8, 0),
+    size,
+  });
+}
+
+function frameHandleHover(id) {
+  setHoveredResizeHandle(resizeFrame, id);
+  if (id && selectionFrameVisible()) {
+    renderer.domElement.style.cursor = id === "top" ? "ns-resize" : "nwse-resize";
+    showHandleRuler(id, unionBounds(state.selected));
+  } else {
+    renderer.domElement.style.cursor = "";
+    hideResizeRuler(resizeFrame);
+  }
+}
+
+function dragPointFor(raycaster, box, id) {
+  const plane = new THREE.Plane();
+  if (id === "top") {
+    const normal = new THREE.Vector3();
+    camera.getWorldDirection(normal);
+    normal.y = 0;
+    if (normal.lengthSq() < 1e-6) normal.set(0, 0, 1);
+    normal.normalize();
+    plane.setFromNormalAndCoplanarPoint(normal, box.getCenter(new THREE.Vector3()));
+  } else {
+    plane.set(new THREE.Vector3(0, 1, 0), -box.min.y);
+  }
+  return raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+}
+
+function frameDragStart(id) {
+  if (selectionFrameVisible() === false) return;
+  const box = unionBounds(state.selected);
+  frameDrag = {
+    id,
+    box,
+    snapshots: state.selected.map((object) => ({
+      object,
+      position: object.position.clone(),
+      scale: object.scale.clone(),
+      params: object.userData.params ? { ...object.userData.params } : null,
+      baseY: new THREE.Box3().setFromObject(object).min.y,
+    })),
+  };
+  transformControls.detach();
+  showHandleRuler(id, box);
+}
+
+// Scaling a rotated object changes the height of its world bounding box, which can
+// push it through the bed. Lift such objects back so they keep their original base.
+function snapBasesToPlane(snapshots) {
+  const box = new THREE.Box3();
+  snapshots.forEach((snapshot) => {
+    if (snapshot.baseY < -1e-6) return;
+    box.setFromObject(snapshot.object);
+    if (box.min.y < snapshot.baseY - 1e-6) snapshot.object.position.y += snapshot.baseY - box.min.y;
+  });
+}
+
+function frameDragMove(raycaster) {
+  if (frameDrag === null) return;
+  const { box, id, snapshots } = frameDrag;
+  const point = dragPointFor(raycaster, box, id);
+  if (!point) return;
+  if (id === "top") {
+    const target = heightTarget(box, point.y, state.snap, FRAME_MIN_SIZE);
+    const sy = Math.max(0.001, target.height / Math.max(1e-4, box.max.y - box.min.y));
+    applyHeightScale(snapshots, target.baseY, sy);
+  } else {
+    const target = cornerTarget(box, id, point, state.snap, FRAME_MIN_SIZE);
+    const sx = Math.max(0.001, target.width / Math.max(1e-4, box.max.x - box.min.x));
+    const sz = Math.max(0.001, target.depth / Math.max(1e-4, box.max.z - box.min.z));
+    applyCornerScale(snapshots, new THREE.Vector3(target.anchorX, box.min.y, target.anchorZ), sx, sz);
+    snapBasesToPlane(snapshots);
+  }
+  showHandleRuler(id, unionBounds(state.selected));
+  updateMeasure();
+}
+
+function restoreFrameStates(states) {
+  states.forEach(({ object, position, scale, params }) => {
+    if (params && object.userData.params) {
+      object.userData.params = { ...params };
+      rebuildShapeGeometry(object, object.userData.params);
+    }
+    object.position.copy(position);
+    object.scale.copy(scale);
+  });
+  syncGizmo();
+  ui.refresh();
+  updateMeasure();
+  scheduleSave();
+}
+
+function frameDragEnd() {
+  if (frameDrag === null) return;
+  const { snapshots } = frameDrag;
+  snapshots.forEach(({ object, position }) => {
+    const finalPosition = object.position.clone();
+    const baseBefore = new THREE.Box3().setFromObject(object).min.y;
+    // Bake against the pre-drag position so the lift baked into params matches the original,
+    // then restore the position the drag produced and pin the world base exactly.
+    object.position.copy(position);
+    if (object.userData.params && SHAPE_DEFS[object.userData.shapeType]) bakeScaleIntoParams(object);
+    object.position.copy(finalPosition);
+    const baseAfter = new THREE.Box3().setFromObject(object).min.y;
+    object.position.y += baseBefore - baseAfter;
+  });
+  const after = snapshots.map(({ object }) => ({
+    object,
+    position: object.position.clone(),
+    scale: object.scale.clone(),
+    params: object.userData.params ? { ...object.userData.params } : null,
+  }));
+  const changed = snapshots.some((before, i) => before.position.equals(after[i].position) === false || before.scale.equals(after[i].scale) === false);
+  frameDrag = null;
+  hideResizeRuler(resizeFrame);
+  syncGizmo();
+  if (changed) {
+    history.push({ undo: () => restoreFrameStates(snapshots), redo: () => restoreFrameStates(after) });
+    updateHistoryUI();
+  }
+  ui.refresh();
+  updateMeasure();
+  scheduleSave();
+}
+
 
 // Draw the readout value into the ruler's chip texture.
 function drawRulerText(text) {
@@ -2150,6 +2339,7 @@ function animate() {
   updateViewTween(performance.now());
   controls.update();
   updateGridLod(gridGroup, camera, renderer.domElement.clientHeight);
+  updateFrameFromSelection();
   viewCube.update();
   renderer.render(scene, camera);
 }

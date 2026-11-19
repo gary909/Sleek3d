@@ -26,6 +26,11 @@ export function createInteraction({
   onCopy,
   onPaste,
   onDrop,
+  pickFrameHandle,
+  onFrameHover,
+  onFrameDragStart,
+  onFrameDragMove,
+  onFrameDragEnd,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -35,6 +40,8 @@ export function createInteraction({
   let downY = 0;
   let hovered = null;
   let pointerDownOnCanvas = false;
+  let frameDrag = null;
+  let hoveredHandle = null;
 
   function updatePointer(event) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -76,6 +83,24 @@ export function createInteraction({
   }
 
   function onPointerMove(event) {
+    if (frameDrag !== null) {
+      updatePointer(event);
+      onFrameDragMove?.(raycaster);
+      return;
+    }
+    updatePointer(event);
+    const handle = pickFrameHandle ? pickFrameHandle(raycaster) : null;
+    if (handle !== hoveredHandle) {
+      hoveredHandle = handle;
+      onFrameHover?.(handle);
+    }
+    if (handle) {
+      if (hovered !== null) {
+        hovered = null;
+        applyHighlight();
+      }
+      return;
+    }
     const object = pick(event);
     if (object !== hovered) {
       hovered = object;
@@ -105,16 +130,36 @@ export function createInteraction({
     }
   }
 
+  // Frame handles win over the gizmo: this capture-phase handler runs before the
+  // canvas listeners, and stopping propagation keeps TransformControls out of it.
+  window.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || frameDrag !== null) return;
+    if (event.target !== renderer.domElement) return;
+    updatePointer(event);
+    const handle = pickFrameHandle ? pickFrameHandle(raycaster) : null;
+    if (handle === null) return;
+    frameDrag = handle;
+    event.stopPropagation();
+    event.preventDefault();
+    onFrameDragStart?.(handle, raycaster);
+  }, true);
+
   // Selection happens on pointer *up*, and only if the pointer barely moved (a real
   // click). This way dragging a gizmo handle or orbiting never changes the selection.
   function onPointerDown(event) {
-    pointerDownOnCanvas = event.button === 0;
-    if (!pointerDownOnCanvas) return;
+    if (event.button !== 0) return;
+    pointerDownOnCanvas = true;
     downX = event.clientX;
     downY = event.clientY;
   }
 
   function onPointerUp(event) {
+    if (frameDrag !== null) {
+      const handle = frameDrag;
+      frameDrag = null;
+      onFrameDragEnd?.(handle);
+      return;
+    }
     if (event.button !== 0) return;
     if (!pointerDownOnCanvas) return;
     pointerDownOnCanvas = false;
