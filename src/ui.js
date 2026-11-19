@@ -34,6 +34,7 @@ export function createUI({
 }) {
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorBody = document.getElementById('inspector-body');
+  const inspectorName = document.getElementById('inspector-name');
   const scaleInput = document.getElementById('scale');
   const colorInput = document.getElementById('color');
   const holeInput = document.getElementById('hole');
@@ -285,6 +286,24 @@ export function createUI({
     });
   }
 
+  function describeSelection(selection) {
+    if (selection.length === 0) return "";
+    if (selection.length > 1) return selection.length + " objects";
+    const object = selection[0];
+    if (object.userData && object.userData.referenceImage) return "Ref Image";
+    if (object.isGroup && object.name) return object.name;
+    const mesh = object.isMesh ? object : firstMesh(object);
+    if (mesh) {
+      const type = mesh.userData.shapeType;
+      if (type === "text") return "Text";
+      if (type === "combined") return "Solid";
+      const def = SHAPE_DEFS[type];
+      if (def) return def.label;
+    }
+    if (object.isGroup) return "Group";
+    return "Object";
+  }
+
   function refresh() {
     const sel = state.selected;
     const primary = sel[0];
@@ -292,6 +311,7 @@ export function createUI({
 
     inspectorEmpty.hidden = hasSelection;
     inspectorBody.hidden = !hasSelection;
+    inspectorName.textContent = hasSelection ? " - " + describeSelection(sel) : "";
 
     const canCombine = sel.length === 2 && sel.every((o) => o.userData.referenceImage !== true);
     unionBtn.disabled = !canCombine;

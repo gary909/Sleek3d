@@ -11,8 +11,6 @@ ___________________________________________
 
 TO DO:
 
-option for reference image?
-
 Colours: add predefined pallettes
 
 ruler overlay
@@ -26,6 +24,8 @@ Option to add textures to objects? Could have this as a separate page/software?
 ________________________________________
 
 DONE:
+
+option for reference image?
 
 Add import
 
