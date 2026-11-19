@@ -11,8 +11,6 @@ ___________________________________________
 
 TO DO:
 
-improve shadows
-
 add lock/unlock editing
 
 ruler overlay
@@ -26,6 +24,8 @@ Colours: add predefined pallettes
 ________________________________________
 
 DONE:
+
+improve shadows
 
 stop grid fade on outer-zoom
 

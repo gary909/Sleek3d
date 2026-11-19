@@ -14,6 +14,7 @@ import {
   handleResize,
   applyEnvironment,
   applyStudioScale,
+  applyShadowTint,
   HOME_CAMERA_POSITION,
   HOME_TARGET,
 } from './scene.js';
@@ -38,7 +39,7 @@ const perspectiveCamera = camera;
 let orthoCamera = null;
 let isOrtho = false;
 const lights = createLights(scene);
-const { gridGroup } = createGround(scene);
+const { ground, gridGroup } = createGround(scene);
 
 // The default (home) view is derived from the work-area size in applySettings.
 const homeView = { position: HOME_CAMERA_POSITION.clone(), target: HOME_TARGET.clone() };
@@ -1994,6 +1995,7 @@ function applySettings(s) {
   gridGroup.visible = s.grid;
   updateGrid(gridGroup, s);
   applyStudioScale(lights, s.gridWidth, s.gridLength);
+  applyShadowTint(ground, s.background);
 
   // Everything camera- and light-related scales with the work area so a 20 cm
   // print bed can be framed and lit the same way the original 40 mm grid was.

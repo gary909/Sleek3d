@@ -66,9 +66,12 @@ export function createGround(scene) {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
-  // A shadow catcher must not write depth or it can fight the grid above it.
+  // A shadow catcher must not write depth or it can fight the grid above it,
+  // and it has to draw after the grid so shadows visibly darken the grid lines
+  // (on a black workplane the overlay only shows where something is already drawn).
   ground.material.depthWrite = false;
-  ground.renderOrder = 0;
+  ground.material.fog = false;
+  ground.renderOrder = 2;
   scene.add(ground);
 
   // The work grid lines are rebuilt by grid.js whenever the units or the
@@ -112,10 +115,11 @@ export function applyStudioScale(lights, width, length) {
   sun.shadow.camera.far = max * 3;
   sun.shadow.camera.updateProjectionMatrix();
   const size = max > 120 ? 4096 : 2048;
-  // Bias scaled to the shadow texel so it stays stable at any work-area size.
+  // three's shadow.bias is in normalised depth-map units (not millimetres), so it
+  // stays a small constant; the normal bias is in world units and tracks the texel size.
   const texel = (2 * reach) / size;
-  sun.shadow.bias = -texel * 0.5;
-  sun.shadow.normalBias = texel * 0.5;
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = texel * 1.5;
   if (sun.shadow.mapSize.x !== size) {
     sun.shadow.mapSize.set(size, size);
     if (sun.shadow.map) {
@@ -168,4 +172,20 @@ export function handleResize(renderer, getCamera, container) {
   }
   window.addEventListener('resize', onResize);
   return onResize;
+}
+
+// On a black workplane a black shadow is invisible, so dark backgrounds get a
+// slightly lifted cool tint that still reads as a shadow, while light
+// backgrounds keep the classic darkened shadow.
+export function applyShadowTint(ground, background) {
+  if (!ground || !ground.material) return;
+  const bg = new THREE.Color(background || "#000000");
+  const luma = 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b;
+  if (luma < 0.2) {
+    ground.material.color.set(0x2f3b4a);
+    ground.material.opacity = 0.6;
+  } else {
+    ground.material.color.set(0x000000);
+    ground.material.opacity = 0.25;
+  }
 }
