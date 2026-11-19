@@ -11,6 +11,8 @@ ___________________________________________
 
 TO DO:
 
+show size on
+
 ruler overlay
 
 front panel designer mode?
