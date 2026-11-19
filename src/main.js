@@ -433,6 +433,7 @@ const ui = createUI({
   onToggleHole,
   onToggleTransparent,
   onDelete,
+  onToggleLock,
   onBoolean,
   onExport,
   onImport: importModel,
@@ -645,9 +646,37 @@ function setHole(mesh, isHole) {
 
 // ---- gizmo -------------------------------------------------------------------
 
+// ---- object lock ------------------------------------------------------------
+
+// A locked object cannot be transformed, edited or deleted until it is unlocked.
+function lockedSelection() {
+  return state.selected.some((object) => object.userData && object.userData.locked === true);
+}
+
+function applyLock(objects, locked) {
+  objects.forEach((object) => {
+    object.userData.locked = locked;
+  });
+  syncGizmo();
+  ui.refresh();
+  scheduleSave();
+}
+
+function onToggleLock() {
+  const objects = [...state.selected];
+  if (objects.length === 0) return;
+  const wasLocked = objects.every((object) => object.userData.locked === true);
+  const next = wasLocked === false;
+  const undo = () => applyLock(objects, wasLocked);
+  const redo = () => applyLock(objects, next);
+  redo();
+  history.push({ undo, redo });
+  updateHistoryUI();
+}
+
 function syncGizmo() {
   const target = state.selected[0] ?? null;
-  if (target) {
+  if (target && target.userData.locked !== true) {
     if (transformControls.object !== target) transformControls.attach(target);
   } else {
     transformControls.detach();
@@ -877,6 +906,7 @@ function performRedo() {
 // ---- inspector actions ------------------------------------------------------
 
 function onScale(value) {
+  if (lockedSelection()) return;
   if (!scaleBefore) {
     scaleBefore = new Map(state.selected.map((m) => [m, m.scale.clone()]));
   }
@@ -899,6 +929,7 @@ function onScaleCommit() {
 }
 
 function onColor(hex) {
+  if (lockedSelection()) return;
   const value = new THREE.Color(hex).getHex();
   const meshes = state.selected.flatMap(getMeshes);
   if (!colorBefore) {
@@ -927,6 +958,7 @@ function editableMesh(object) {
 }
 
 function onParamChange(params) {
+  if (lockedSelection()) return;
   const mesh = editableMesh(state.selected[0]);
   if (!mesh) return;
   if (!resizeGesture || resizeGesture.mesh !== mesh) {
@@ -977,6 +1009,7 @@ function commitReferenceGesture() {
 }
 
 function onReferenceParam(patch, commit = false) {
+  if (lockedSelection()) return;
   const mesh = referenceMesh();
   if (!mesh) return;
   if (!referenceGesture || referenceGesture.mesh !== mesh) {
@@ -990,6 +1023,7 @@ function onReferenceParam(patch, commit = false) {
 }
 
 async function onReferenceImage(file) {
+  if (lockedSelection()) return;
   const mesh = referenceMesh();
   if (!mesh) return;
   const processed = await processImageFile(file);
@@ -1033,6 +1067,7 @@ function refreshMeshAppearance(mesh) {
   applyAppearance(mesh);
 }
 function onToggleHole(isHole) {
+  if (lockedSelection()) return;
   const meshes = state.selected.flatMap(getMeshes);
   if (!meshes.length) return;
   const before = meshes.map((m) => !m.userData.solid);
@@ -1043,6 +1078,7 @@ function onToggleHole(isHole) {
 }
 
 function onToggleTransparent(isTransparent) {
+  if (lockedSelection()) return;
   const meshes = state.selected.flatMap(getMeshes);
   if (!meshes.length) return;
   const before = meshes.map((m) => m.userData.transparent === true);
@@ -1056,6 +1092,7 @@ function onToggleTransparent(isTransparent) {
 }
 
 function onDelete() {
+  if (lockedSelection()) return;
   const objects = [...state.selected];
   if (!objects.length) return;
   objects.forEach(removeShape);
@@ -1068,6 +1105,7 @@ function onDelete() {
 // ---- booleans ---------------------------------------------------------------
 
 function onBoolean(op) {
+  if (lockedSelection()) return;
   if (state.selected.length !== 2) return;
   const [aOrig, bOrig] = state.selected;
   if (aOrig.userData.referenceImage || bOrig.userData.referenceImage) return;
@@ -1107,6 +1145,7 @@ function duplicateSelected() {
   if (!objects.length) return;
   const clones = objects.map((o) => {
     const c = o.clone(true);
+    c.userData.locked = false;
     c.position.x += state.snap;
     c.position.z += state.snap;
     return c;
@@ -1138,6 +1177,7 @@ function pasteClipboard() {
   if (!objects.length) return;
 
   objects.forEach((o) => {
+    o.userData.locked = false;
     o.position.x += state.snap;
     o.position.z += state.snap;
     scene.add(o);
@@ -1152,6 +1192,7 @@ function pasteClipboard() {
 }
 
 function groupSelected() {
+  if (lockedSelection()) return;
   const objects = [...state.selected];
   if (objects.length < 2) return;
   const group = new THREE.Group();
@@ -1166,6 +1207,7 @@ function groupSelected() {
 }
 
 function ungroupSelected() {
+  if (lockedSelection()) return;
   const groups = state.selected.filter((o) => o.isGroup);
   if (!groups.length) return;
   const entries = groups.map((group) => ({ group, children: [...group.children] }));
@@ -1590,6 +1632,7 @@ function updateScaleRuler(object) {
 }
 
 function alignSelection(axis, mode) {
+  if (lockedSelection()) return;
   const objects = [...state.selected];
   if (objects.length < 2) return;
 
@@ -1626,6 +1669,7 @@ function alignSelection(axis, mode) {
 
 // Move each selected object straight down so its lowest point rests on the work plane.
 function dropSelection() {
+  if (lockedSelection()) return;
   const objects = [...state.selected];
   if (!objects.length) return;
 

@@ -12,6 +12,7 @@ export function createUI({
   onToggleHole,
   onToggleTransparent,
   onDelete,
+  onToggleLock,
   onBoolean,
   onExport,
   onImport,
@@ -173,6 +174,9 @@ export function createUI({
     refresh();
   });
 
+  const lockToggle = document.getElementById('lock-toggle');
+  lockToggle?.addEventListener('click', () => onToggleLock());
+
   document.getElementById('reset').addEventListener('click', onReset);
   snapSelect.addEventListener('change', () => onSnap(Number(snapSelect.value)));
 
@@ -311,6 +315,14 @@ export function createUI({
 
     inspectorEmpty.hidden = hasSelection;
     inspectorBody.hidden = !hasSelection;
+    const locked = hasSelection && sel.every((o) => o.userData.locked === true);
+    if (lockToggle) {
+      lockToggle.hidden = hasSelection === false;
+      lockToggle.classList.toggle('locked', locked);
+      lockToggle.setAttribute('aria-pressed', String(locked));
+      lockToggle.dataset.tip = locked ? 'Unlock this object' : 'Lock this object so it cannot be moved or edited';
+    }
+    inspectorBody.classList.toggle('locked', locked);
     inspectorName.textContent = hasSelection ? " - " + describeSelection(sel) : "";
 
     const canCombine = sel.length === 2 && sel.every((o) => o.userData.referenceImage !== true);

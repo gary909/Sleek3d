@@ -11,8 +11,6 @@ ___________________________________________
 
 TO DO:
 
-add lock/unlock editing
-
 ruler overlay
 
 front panel designer mode?
@@ -24,6 +22,8 @@ Colours: add predefined pallettes
 ________________________________________
 
 DONE:
+
+add lock/unlock editing
 
 improve shadows
 

@@ -39,12 +39,14 @@ function objectToJSON(object) {
       transparent: object.userData.transparent === true,
       shapeType: object.userData.shapeType ?? 'combined',
       params: object.userData.params ?? null,
+      locked: object.userData.locked === true,
       geometry: geometryToJSON(object.geometry),
     };
   }
   return {
     kind: 'group',
     matrix: object.matrix.toArray(),
+    locked: object.userData.locked === true,
     children: object.children.map(objectToJSON),
   };
 }
@@ -79,10 +81,12 @@ function objectFromJSON(json) {
       transparent: json.transparent === true,
       shapeType: json.shapeType ?? 'combined',
       params: json.params ?? null,
+      locked: json.locked === true,
     };
     return mesh;
   }
   const group = new THREE.Group();
+  group.userData.locked = json.locked === true;
   group.matrix.fromArray(json.matrix);
   group.matrix.decompose(group.position, group.quaternion, group.scale);
   group.rotation.setFromQuaternion(group.quaternion);

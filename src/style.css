@@ -704,3 +704,64 @@ section:first-child {
 .row[hidden] {
   display: none;
 }
+
+/* Object padlock: sits in the inspector header, top right. */
+#inspector {
+  position: relative;
+}
+
+.lock-toggle {
+  position: absolute;
+  top: -10px;
+  right: -12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--panel-bg);
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.lock-toggle:hover {
+  color: inherit;
+  background: rgba(87, 96, 106, 0.1);
+}
+
+.lock-toggle .lock-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.lock-toggle .shackle {
+  transform-box: view-box;
+  transform-origin: 8.5px 10.5px;
+  transition: transform 0.15s ease;
+}
+
+/* Unlocked (default): the shackle swings open. */
+.lock-toggle:not(.locked) .shackle {
+  transform: rotate(-30deg);
+}
+
+.lock-toggle.locked {
+  color: #b97f04;
+  background: rgba(240, 180, 41, 0.2);
+}
+
+/* A locked object cannot be edited from the inspector. */
+#inspector-body.locked input,
+#inspector-body.locked button,
+#inspector-body.locked select {
+  pointer-events: none;
+  opacity: 0.4;
+}
