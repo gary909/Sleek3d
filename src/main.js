@@ -1302,6 +1302,13 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+
+// The measurement label and ruler chip scale with the work area so they stay
+// legible now that the default bed is 20 cm rather than 40 mm.
+function labelWorldHeight() {
+  const max = Math.max(settings.gridWidth, settings.gridLength);
+  return Math.max(1, max * 0.04);
+}
 // Live measurement label, attached above the selected object (billboard sprite).
 // Fixed-width fields + a fixed number of lines so the label never changes size.
 function updateMeasure() {
@@ -1356,8 +1363,8 @@ function updateMeasure() {
   measureTexture.needsUpdate = true;
 
   const center = box.getCenter(new THREE.Vector3());
-  measureSprite.position.set(center.x, box.max.y + 0.9, center.z);
-  const worldHeight = 0.65;
+  const worldHeight = labelWorldHeight();
+  measureSprite.position.set(center.x, box.max.y + worldHeight * 1.4, center.z);
   measureSprite.scale.set(worldHeight * (w / h), worldHeight, 1);
   measureSprite.visible = true;
 }
@@ -1471,7 +1478,7 @@ function updateMoveRuler(object) {
   // Distance chip, offset to the side + up so it doesn't crowd the object.
   const chip = mid.clone().addScaledVector(tickDir, 0.9).addScaledVector(UP, 0.4);
   rulerSprite.position.copy(chip);
-  setChipSize(0.5);
+  setChipSize(labelWorldHeight() * 0.75);
 
   drawRulerText(formatLength(len, settings) + ' ' + getUnit(settings));
   rulerGroup.visible = true;
@@ -1525,7 +1532,7 @@ function updateRotateRuler(object) {
   const midDir = new THREE.Vector3().copy(ref).applyAxisAngle(axis, angle / 2);
   const chip = center.clone().addScaledVector(midDir, radius + 0.9).addScaledVector(UP, 0.4);
   rulerSprite.position.copy(chip);
-  setChipSize(0.5);
+  setChipSize(labelWorldHeight() * 0.75);
 
   drawRulerText(THREE.MathUtils.radToDeg(angle).toFixed(2) + '\u00b0');
   rulerGroup.visible = true;
@@ -1576,7 +1583,7 @@ function updateScaleRuler(object) {
   const center = current.getCenter(new THREE.Vector3());
   const chip = center.clone().add(new THREE.Vector3((current.max.x - current.min.x) / 2 + 0.9, 0, 0));
   rulerSprite.position.copy(chip);
-  setChipSize(0.5);
+  setChipSize(labelWorldHeight() * 0.75);
 
   drawRulerText(text);
   rulerGroup.visible = true;
