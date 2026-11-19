@@ -136,7 +136,7 @@ export function bakeMesh(mesh) {
 export function combineGroupToMesh(group) {
   const meshes = [];
   group.traverse((o) => {
-    if (o.isMesh) meshes.push(o);
+    if (o.isMesh && o.userData.referenceImage !== true) meshes.push(o);
   });
 
   const solids = meshes.filter((m) => m.userData.solid !== false);

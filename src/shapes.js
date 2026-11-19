@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { createReferenceImage, applyReferenceMaterial } from './reference.js';
 
 const SEGMENTS = 48;
 
@@ -208,6 +209,7 @@ export const SHAPE_DEFS = {
   hemisphere: { label: 'Hemisphere', factory: createHemisphere, params: [param('r', 'Radius', 0.1, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
   prism: { label: 'Prism', factory: createPrism, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 3), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
   star: { label: 'Star', factory: createStar, params: [param('outer', 'Size', 0.1, 10), param('points', 'Points', 3, 12, 1, false), param('d', 'Thickness', 0.1, 5), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
+  reference: { label: 'Reference Image', factory: createReferenceImage, params: [param('w', 'Width', 1, 100, 0.5), param('h', 'Height', 1, 100, 0.5)] },
 };
 
 export const SHAPE_FACTORIES = Object.fromEntries(
@@ -234,6 +236,13 @@ export function rebuildShapeGeometry(mesh, params) {
   mesh.geometry = fresh.geometry;
   mesh.position.y = fresh.position.y + lift;
   mesh.userData.params = { ...params };
+
+  if (mesh.userData.shapeType === 'reference') {
+    // Facing changes re-orient the plane; manual rotations are otherwise kept.
+    if (params.facing !== oldParams.facing) mesh.rotation.copy(fresh.rotation);
+    applyReferenceMaterial(mesh, { ...params });
+  }
+
   fresh.material.dispose();
   return true;
 }
@@ -288,6 +297,10 @@ export function bakeScaleIntoParams(mesh) {
       mul('outer', rh);
       mul('d', s.z);
       mul('bevel', (rh + s.z) / 2);
+      break;
+    case 'reference':
+      mul('w', s.x);
+      mul('h', s.y);
       break;
     default:
       return false;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createReferenceImage } from './reference.js';
 
 const STORAGE_KEY = 'sleek3d:project';
 
@@ -54,6 +55,13 @@ export function serializeScene(shapes) {
 
 function objectFromJSON(json) {
   if (json.kind === 'mesh') {
+    if (json.shapeType === "reference") {
+      const reference = createReferenceImage(json.params || {});
+      reference.matrix.fromArray(json.matrix);
+      reference.matrix.decompose(reference.position, reference.quaternion, reference.scale);
+      reference.rotation.setFromQuaternion(reference.quaternion);
+      return reference;
+    }
     const geometry = geometryFromJSON(json.geometry);
     const material = new THREE.MeshStandardMaterial({
       color: json.color,

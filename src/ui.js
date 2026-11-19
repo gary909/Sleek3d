@@ -15,6 +15,8 @@ export function createUI({
   onBoolean,
   onExport,
   onImport,
+  onReferenceImage,
+  onReferenceParam,
   onReset,
   onSnap,
   onSetMode,
@@ -122,6 +124,54 @@ export function createUI({
       }
     }
   });
+  const referenceControls = document.getElementById("reference-controls");
+  const referenceImageBlock = document.getElementById("reference-image");
+  const referenceUpload = document.getElementById("reference-upload");
+  const referenceFile = document.getElementById("reference-file");
+  const referenceHint = document.getElementById("reference-hint");
+  const referenceAspect = document.getElementById("reference-aspect");
+  const referenceOpacity = document.getElementById("reference-opacity");
+  const referenceOpacityValue = document.getElementById("reference-opacity-value");
+  const referenceOnTop = document.getElementById("reference-ontop");
+  const referenceFacing = document.getElementById("reference-facing");
+  const shapeOnlyRows = Array.from(document.querySelectorAll(".js-shape-only"));
+
+  referenceUpload?.addEventListener("click", () => referenceFile.click());
+  referenceFile?.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file === undefined) return;
+    const label = referenceUpload.textContent;
+    referenceUpload.disabled = true;
+    referenceUpload.textContent = "Loading...";
+    referenceHint.classList.remove("error");
+    referenceHint.textContent = "Reading image...";
+    try {
+      await onReferenceImage(file);
+      referenceHint.textContent = "Image loaded - choose another to replace it";
+      refresh();
+    } catch (error) {
+      referenceHint.textContent = error && error.message ? error.message : "Could not load that image.";
+      referenceHint.classList.add("error");
+    } finally {
+      referenceUpload.disabled = false;
+      referenceUpload.textContent = label;
+    }
+  });
+
+  referenceAspect?.addEventListener("change", () => onReferenceParam({ aspect: referenceAspect.checked }, true));
+  referenceOpacity?.addEventListener("input", () => {
+    const value = Number(referenceOpacity.value);
+    referenceOpacityValue.textContent = Math.round(value * 100) + "%";
+    onReferenceParam({ opacity: value }, false);
+  });
+  referenceOpacity?.addEventListener("change", () => onReferenceParam({}, true));
+  referenceOnTop?.addEventListener("change", () => onReferenceParam({ onTop: referenceOnTop.checked }, true));
+  referenceFacing?.addEventListener("change", () => {
+    onReferenceParam({ facing: referenceFacing.value }, true);
+    refresh();
+  });
+
   document.getElementById('reset').addEventListener('click', onReset);
   snapSelect.addEventListener('change', () => onSnap(Number(snapSelect.value)));
 
@@ -142,6 +192,22 @@ export function createUI({
 
     const unit = getUnit(settings);
     const current = { ...(object.userData.params || {}) };
+    const isReference = object.userData.referenceImage === true;
+    const aspectLocked = isReference && object.userData.params?.aspect !== false;
+    const aspectRatio = Math.max(0.0001, object.userData.params?.ratio || 1);
+    const rows = {};
+
+    const applyAspect = (changedKey) => {
+      if (aspectLocked === false) return;
+      const partnerKey = changedKey === "w" ? "h" : changedKey === "h" ? "w" : null;
+      if (partnerKey === null || rows[partnerKey] === undefined) return;
+      const partner = rows[partnerKey];
+      const desired = changedKey === "w" ? current.w / aspectRatio : current.h * aspectRatio;
+      const next = Math.min(partner.spec.max, Math.max(partner.spec.min, desired));
+      current[partnerKey] = next;
+      partner.slider.value = partner.toDisplay(next);
+      partner.field.value = partner.format(next);
+    };
     def.params.forEach((spec) => {
       const isLength = spec.unit !== false;
       const valueMm = current[spec.key] ?? spec.def ?? spec.min;
@@ -189,6 +255,7 @@ export function createUI({
         current[spec.key] = next;
         if (syncSlider) slider.value = toDisplay(next);
         if (syncField) field.value = format(next);
+        applyAspect(spec.key);
         onParamChange({ ...current });
       };
 
@@ -213,6 +280,7 @@ export function createUI({
         onParamCommit();
       });
 
+      rows[spec.key] = { spec, slider, field, format, toDisplay };
       dimContainer.appendChild(row);
     });
   }
@@ -225,7 +293,7 @@ export function createUI({
     inspectorEmpty.hidden = hasSelection;
     inspectorBody.hidden = !hasSelection;
 
-    const canCombine = sel.length === 2;
+    const canCombine = sel.length === 2 && sel.every((o) => o.userData.referenceImage !== true);
     unionBtn.disabled = !canCombine;
     subtractBtn.disabled = !canCombine;
     intersectBtn.disabled = !canCombine;
@@ -236,6 +304,22 @@ export function createUI({
     ungroupBtn.disabled = !sel.some((o) => o.isGroup);
     alignBtns.forEach((b) => { b.disabled = sel.length < 2; });
     renderDimensions(primary);
+    const reference = Boolean(primary && primary.userData.referenceImage === true);
+    if (referenceControls) referenceControls.hidden = reference === false;
+    if (referenceImageBlock) referenceImageBlock.hidden = reference === false;
+    shapeOnlyRows.forEach((row) => { row.hidden = reference; });
+    if (reference) {
+      const params = primary.userData.params || {};
+      referenceAspect.checked = params.aspect !== false;
+      const opacity = params.opacity ?? 0.85;
+      referenceOpacity.value = String(opacity);
+      referenceOpacityValue.textContent = Math.round(opacity * 100) + "%";
+      referenceOnTop.checked = params.onTop === true;
+      referenceFacing.value = params.facing || "top";
+      referenceHint.textContent = params.image ? "Image loaded - choose another to replace it" : "PNG or JPG, up to 5 MB";
+      referenceHint.classList.remove("error");
+    }
+
 
     if (primary) {
       const mesh = firstMesh(primary);

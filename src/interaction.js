@@ -70,7 +70,7 @@ export function createInteraction({
       const isHovered = hovered === object;
       const level = selected ? HIGHLIGHT_HEX : isHovered ? HOVER_HEX : 0x000000;
       getMeshes(object).forEach((m) => {
-        m.material.emissive.setHex(level);
+        if (m.material.emissive) m.material.emissive.setHex(level);
       });
     });
   }

@@ -25,6 +25,7 @@ import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
 import { loadImportedFile } from './importer.js';
+import { processImageFile, applyReferenceMaterial } from './reference.js';
 import { loadSettings, saveSettings, getUnit, formatLength, SNAP_VALUES, snapLabel } from './settings.js';
 
 const container = document.getElementById('app');
@@ -418,6 +419,8 @@ const ui = createUI({
   onBoolean,
   onExport,
   onImport: importModel,
+  onReferenceImage,
+  onReferenceParam,
   onReset,
   onSnap,
   onSetMode,
@@ -538,6 +541,7 @@ function addShape(type) {
   const mesh = SHAPE_FACTORIES[type]();
   scene.add(mesh);
   state.shapes.push(mesh);
+  applyOnTopGhosts();
   interaction.setSelected([mesh]);
   history.push(commandAdd(mesh));
   updateHistoryUI();
@@ -550,6 +554,7 @@ async function addTextShape() {
   const mesh = await createTextMesh(text.trim());
   scene.add(mesh);
   state.shapes.push(mesh);
+  applyOnTopGhosts();
   interaction.setSelected([mesh]);
   history.push(commandAdd(mesh));
   updateHistoryUI();
@@ -580,6 +585,7 @@ function removeShape(object) {
     m.geometry.dispose();
     m.material.dispose();
   });
+  applyOnTopGhosts();
 }
 
 function applyAppearance(mesh) {
@@ -837,6 +843,7 @@ function performUndo() {
   if (!history.canUndo()) return;
   history.undo();
   interaction.setSelected([]);
+  applyOnTopGhosts();
   updateHistoryUI();
   scheduleSave();
 }
@@ -845,6 +852,7 @@ function performRedo() {
   if (!history.canRedo()) return;
   history.redo();
   interaction.setSelected([]);
+  applyOnTopGhosts();
   updateHistoryUI();
   scheduleSave();
 }
@@ -907,7 +915,14 @@ function onParamChange(params) {
   if (!resizeGesture || resizeGesture.mesh !== mesh) {
     resizeGesture = { mesh, beforeParams: { ...mesh.userData.params } };
   }
-  rebuildShapeGeometry(mesh, params);
+  const def = SHAPE_DEFS[mesh.userData.shapeType];
+  const next = { ...(mesh.userData.params || {}) };
+  if (def) {
+    def.params.forEach((spec) => {
+      if (params[spec.key] !== undefined) next[spec.key] = params[spec.key];
+    });
+  }
+  rebuildShapeGeometry(mesh, next);
   updateMeasure();
   scheduleSave();
 }
@@ -923,6 +938,83 @@ function onParamCommit() {
   }
 }
 
+// ---- reference images -------------------------------------------------------
+
+let referenceGesture = null;
+
+function referenceMesh() {
+  const object = state.selected[0];
+  return object && object.userData.referenceImage === true ? object : null;
+}
+
+function commitReferenceGesture() {
+  if (!referenceGesture) return;
+  const { mesh, before } = referenceGesture;
+  referenceGesture = null;
+  const after = { ...mesh.userData.params };
+  if (JSON.stringify(before) !== JSON.stringify(after)) {
+    history.push(commandReshape(mesh, before, after));
+    updateHistoryUI();
+  }
+  ui.refresh();
+}
+
+function onReferenceParam(patch, commit = false) {
+  const mesh = referenceMesh();
+  if (!mesh) return;
+  if (!referenceGesture || referenceGesture.mesh !== mesh) {
+    referenceGesture = { mesh, before: { ...mesh.userData.params } };
+  }
+  rebuildShapeGeometry(mesh, { ...mesh.userData.params, ...patch });
+  if (patch.onTop !== undefined) applyOnTopGhosts();
+  updateMeasure();
+  scheduleSave();
+  if (commit) commitReferenceGesture();
+}
+
+async function onReferenceImage(file) {
+  const mesh = referenceMesh();
+  if (!mesh) return;
+  const processed = await processImageFile(file);
+  const before = { ...mesh.userData.params };
+  const params = { ...before, image: processed.dataUrl, ratio: processed.ratio, name: processed.name };
+  if (params.aspect !== false) {
+    params.w = Math.max(1, Math.min(100, params.w));
+    params.h = Math.max(1, Math.min(100, params.w / (processed.ratio || 1)));
+  }
+  rebuildShapeGeometry(mesh, params);
+  updateMeasure();
+  history.push(commandReshape(mesh, before, { ...mesh.userData.params }));
+  updateHistoryUI();
+  scheduleSave();
+}
+
+// While Set on top is ticked every other shape fades back so the picture reads
+// as sitting at the top of the stack.
+function applyOnTopGhosts() {
+  const active = state.shapes.some((object) => object.userData && object.userData.referenceImage && object.userData.params && object.userData.params.onTop === true);
+  state.shapes.forEach((object) => {
+    if (object.userData && object.userData.referenceImage) return;
+    getMeshes(object).forEach((mesh) => {
+      if (active) {
+        mesh.material.transparent = true;
+        mesh.material.opacity = 0.2;
+        mesh.material.depthWrite = false;
+        mesh.material.needsUpdate = true;
+        return;
+      }
+      applyAppearance(mesh);
+    });
+  });
+}
+
+function refreshMeshAppearance(mesh) {
+  if (mesh.userData.referenceImage) {
+    applyReferenceMaterial(mesh, mesh.userData.params || {});
+    return;
+  }
+  applyAppearance(mesh);
+}
 function onToggleHole(isHole) {
   const meshes = state.selected.flatMap(getMeshes);
   if (!meshes.length) return;
@@ -961,6 +1053,7 @@ function onDelete() {
 function onBoolean(op) {
   if (state.selected.length !== 2) return;
   const [aOrig, bOrig] = state.selected;
+  if (aOrig.userData.referenceImage || bOrig.userData.referenceImage) return;
 
   let a = aOrig;
   let b = bOrig;
@@ -1032,7 +1125,7 @@ function pasteClipboard() {
     o.position.z += state.snap;
     scene.add(o);
     state.shapes.push(o);
-    getMeshes(o).forEach((m) => applyAppearance(m));
+    getMeshes(o).forEach(refreshMeshAppearance);
   });
 
   interaction.setSelected(objects);
@@ -1541,7 +1634,9 @@ let decimationCache = null;
 let simplifyToolsPromise = null;
 
 function exportObjects() {
-  return exportScopeSelect.value === 'selection' ? [...state.selected] : [...state.shapes];
+  const objects = exportScopeSelect.value === "selection" ? [...state.selected] : [...state.shapes];
+  // Reference images are tracing guides, not geometry.
+  return objects.filter((object) => !getMeshes(object).every((mesh) => mesh.userData.referenceImage === true));
 }
 
 function triCount(geometry) {
@@ -1555,6 +1650,7 @@ function collectExportStats(objects) {
   let tris = 0;
   objects.forEach((object) => {
     getMeshes(object).forEach((mesh) => {
+      if (mesh.userData.referenceImage) return;
       const geometry = mesh.geometry;
       if (!geometry?.attributes?.position) return;
       verts += geometry.attributes.position.count;
@@ -1644,6 +1740,10 @@ function closeExportDialog() {
 function buildExportGroup() {
   const group = new THREE.Group();
   exportObjects().forEach((o) => group.add(o.clone(true)));
+  // Reference planes are guides only; drop them from the export copy.
+  const guides = [];
+  group.traverse((object) => { if (object.isMesh && object.userData.referenceImage) guides.push(object); });
+  guides.forEach((mesh) => { if (mesh.parent) mesh.parent.remove(mesh); });
   group.updateMatrixWorld(true);
   return group;
 }
@@ -1902,8 +2002,9 @@ if (loaded && loaded.length) {
   loaded.forEach((obj) => {
     scene.add(obj);
     state.shapes.push(obj);
-    getMeshes(obj).forEach((m) => applyAppearance(m));
+    getMeshes(obj).forEach(refreshMeshAppearance);
   });
+  applyOnTopGhosts();
 } else {
   seedDemo();
 }

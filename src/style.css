@@ -666,3 +666,41 @@ section:first-child {
 #viewcube canvas {
   display: block;
 }
+
+/* Reference-image inspector controls */
+#reference-controls .row label {
+  min-width: 64px;
+}
+
+#reference-controls .hint {
+  margin: 2px 0 10px;
+}
+
+#reference-controls select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+}
+
+#reference-controls output {
+  flex: 0 0 auto;
+  min-width: 34px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.hint.error {
+  color: #c0392b;
+}
+
+/* .row sets display:flex, which would otherwise beat the [hidden] UA rule */
+.row[hidden] {
+  display: none;
+}

@@ -52,6 +52,7 @@
         <button class="shape" data-shape="prism"><svg class="shape-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19 9 6l6 13z"/><path d="M9 6l3-2 6 13-3 2"/></svg><span class="shape-label">Prism</span></button>
         <button class="shape" data-shape="star"><svg class="shape-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3L14.35 8.76L20.56 9.22L15.8 13.24L17.29 19.27L12 16L6.71 19.27L8.2 13.24L3.44 9.22L9.65 8.76Z"/></svg><span class="shape-label">Star</span></button>
         <button class="shape" data-shape="text"><svg class="shape-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14"/><path d="M12 5v14"/></svg><span class="shape-label">Text</span></button>
+        <button class="shape" data-shape="reference"><svg class="shape-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="9.5" r="1.6"/><path d="M4.5 18.5 9.5 13l3 3 2.5-2.5 4.5 5"/></svg><span class="shape-label">Ref Image</span></button>
       </div>
     </aside>
 
@@ -76,20 +77,53 @@
             <button data-mode="rotate" data-tip="Rotate" data-key="E">Rotate</button>
             <button data-mode="scale" data-tip="Scale" data-key="R">Scale</button>
           </div>
-          <div class="row">
+          <div class="row js-shape-only">
             <label for="scale">Scale</label>
             <input id="scale" type="range" min="0.5" max="3" step="0.1" value="1" />
           </div>
+          <div id="reference-image" hidden>
+            <div class="row">
+              <label>Image</label>
+              <button id="reference-upload" type="button" data-tip="PNG or JPG, up to 5 MB">Choose image...</button>
+              <input id="reference-file" type="file" accept="image/*" hidden />
+            </div>
+            <p id="reference-hint" class="hint">PNG or JPG, up to 5 MB</p>
+          </div>
+
           <div id="dimensions"></div>
-          <div class="row">
+
+          <div id="reference-controls" hidden>
+            <div class="row">
+              <label for="reference-aspect">Keep aspect ratio</label>
+              <input id="reference-aspect" type="checkbox" checked />
+            </div>
+            <div class="row">
+              <label for="reference-opacity">Opacity</label>
+              <input id="reference-opacity" type="range" min="0.05" max="1" step="0.05" value="0.85" />
+              <output id="reference-opacity-value">85%</output>
+            </div>
+            <div class="row">
+              <label for="reference-ontop">Set on top</label>
+              <input id="reference-ontop" type="checkbox" />
+            </div>
+            <div class="row">
+              <label for="reference-facing">Image facing</label>
+              <select id="reference-facing">
+                <option value="top">Top</option>
+                <option value="front">Front</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+          </div>
+          <div class="row js-shape-only">
             <label for="color">Color</label>
             <input id="color" type="color" value="#4a90d9" />
           </div>
-          <div class="row" data-tip="Marks shapes as cutters — subtracted when their group is combined" data-key="H">
+          <div class="row js-shape-only" data-tip="Marks shapes as cutters — subtracted when their group is combined" data-key="H">
             <label for="hole">Hole</label>
             <input id="hole" type="checkbox" />
           </div>
-          <div class="row" data-tip="Shows the shape see-through so you can see what's behind or inside it">
+          <div class="row js-shape-only" data-tip="Shows the shape see-through so you can see what's behind or inside it">
             <label for="transparent">Transparent</label>
             <input id="transparent" type="checkbox" />
           </div>
