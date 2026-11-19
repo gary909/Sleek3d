@@ -13,7 +13,7 @@ import {
   createTransformControls,
   handleResize,
   applyEnvironment,
-  GRID_BASE_SIZE,
+  applyStudioScale,
   HOME_CAMERA_POSITION,
   HOME_TARGET,
 } from './scene.js';
@@ -25,6 +25,7 @@ import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
 import { loadImportedFile } from './importer.js';
+import { updateGrid, updateGridLod, gridFamily, IMPERIAL_GRID_SIZE } from './grid.js';
 import { processImageFile, applyReferenceMaterial } from './reference.js';
 import { loadSettings, saveSettings, getUnit, formatLength, SNAP_VALUES, snapLabel } from './settings.js';
 
@@ -38,6 +39,10 @@ let orthoCamera = null;
 let isOrtho = false;
 const lights = createLights(scene);
 const { gridGroup } = createGround(scene);
+
+// The default (home) view is derived from the work-area size in applySettings.
+const homeView = { position: HOME_CAMERA_POSITION.clone(), target: HOME_TARGET.clone() };
+let homeApplied = false;
 applyEnvironment(renderer, scene);
 
 // Measurement label: a billboard sprite attached above the selected object.
@@ -263,16 +268,27 @@ document.getElementById('zoom-in').addEventListener('click', () => zoomView(0.85
 document.getElementById('zoom-out').addEventListener('click', () => zoomView(1 / 0.85));
 
 // Reset the camera to the default ("home") view.
+// Frame the whole work area from the default viewing direction.
+function computeHomeView(s) {
+  const max = Math.max(s.gridWidth, s.gridLength);
+  const fov = THREE.MathUtils.degToRad(perspectiveCamera.fov);
+  const distance = (max * 0.5 / Math.tan(fov / 2)) * 1.1;
+  const dir = HOME_CAMERA_POSITION.clone().sub(HOME_TARGET).normalize();
+  homeView.target.set(0, max * 0.02, 0);
+  homeView.position.copy(homeView.target).addScaledVector(dir, distance);
+}
+
 function resetView() {
   if (camera.isOrthographicCamera) {
-    const d = HOME_CAMERA_POSITION.distanceTo(HOME_TARGET);
+    const d = homeView.position.distanceTo(homeView.target);
     const desired = 2 * Math.tan(THREE.MathUtils.degToRad(perspectiveCamera.fov) / 2) * d;
     const z = (orthoCamera.top - orthoCamera.bottom) / desired;
-    flyTo(HOME_CAMERA_POSITION, HOME_TARGET, 380, z);
+    flyTo(homeView.position, homeView.target, 380, z);
   } else {
-    flyTo(HOME_CAMERA_POSITION, HOME_TARGET);
+    flyTo(homeView.position, homeView.target);
   }
 }
+
 document.getElementById('home-view').addEventListener('click', resetView);
 
 // Toggle between perspective and orthographic (flat) views.
@@ -551,7 +567,7 @@ function addShape(type) {
 async function addTextShape() {
   const text = window.prompt('Text to add', 'Sleek3d');
   if (!text || !text.trim()) return;
-  const mesh = await createTextMesh(text.trim());
+  const mesh = await createTextMesh(text.trim(), { size: 10, depth: 2 });
   scene.add(mesh);
   state.shapes.push(mesh);
   applyOnTopGhosts();
@@ -1219,13 +1235,7 @@ function toggleHoleShortcut() {
 }
 
 // Frame the given objects in view (fit the camera to their combined bounds).
-function frameObjects(objects) {
-  if (!objects.length) return;
-  const box = new THREE.Box3();
-  objects.forEach((o) => {
-    o.updateWorldMatrix(true, false);
-    getMeshes(o).forEach((m) => box.expandByObject(m));
-  });
+function frameBox(box) {
   if (box.isEmpty()) return;
 
   const center = box.getCenter(new THREE.Vector3());
@@ -1244,10 +1254,28 @@ function frameObjects(objects) {
   }
 }
 
-// Fit-to-view button: frame the selection, or all objects when nothing is selected.
-function fitView() {
-  frameObjects(state.selected.length ? state.selected : state.shapes);
+function frameObjects(objects) {
+  if (!objects.length) return;
+  const box = new THREE.Box3();
+  objects.forEach((o) => {
+    o.updateWorldMatrix(true, false);
+    getMeshes(o).forEach((m) => box.expandByObject(m));
+  });
+  frameBox(box);
 }
+
+// Fit-to-view: frame the selection, or the whole work area when the scene is empty.
+function fitView() {
+  const objects = state.selected.length ? state.selected : state.shapes;
+  if (objects.length) {
+    frameObjects(objects);
+    return;
+  }
+  const halfW = settings.gridWidth / 2;
+  const halfL = settings.gridLength / 2;
+  frameBox(new THREE.Box3(new THREE.Vector3(-halfW, 0, -halfL), new THREE.Vector3(halfW, 0, halfL)));
+}
+
 document.getElementById("fit-view").addEventListener("click", fitView);
 
 // ---- alignment ---------------------------------------------------------------
@@ -1932,11 +1960,11 @@ function download(filename, data, type = 'application/octet-stream') {
 
 function seedDemo() {
   // A box with a cylindrical tunnel through it (subtraction demo).
-  const box = SHAPE_FACTORIES.box({ w: 3, h: 1.5, d: 2 });
-  box.position.set(0, 0.75, 0);
+  const box = SHAPE_FACTORIES.box({ w: 30, h: 15, d: 20 });
+  box.position.set(0, 7.5, 0);
 
-  const cutter = SHAPE_FACTORIES.cylinder({ r: 0.6, h: 4 });
-  cutter.position.set(0, 0.75, 0);
+  const cutter = SHAPE_FACTORIES.cylinder({ r: 6, h: 40 });
+  cutter.position.set(0, 7.5, 0);
   cutter.rotation.x = Math.PI / 2; // horizontal, through the box
 
   scene.add(box, cutter);
@@ -1950,8 +1978,8 @@ function seedDemo() {
   state.shapes.push(result);
 
   // A free-standing sphere.
-  const sphere = SHAPE_FACTORIES.sphere({ r: 0.9 });
-  sphere.position.set(2.5, 0.9, 1.5);
+  const sphere = SHAPE_FACTORIES.sphere({ r: 9 });
+  sphere.position.set(25, 9, 15);
   scene.add(sphere);
   state.shapes.push(sphere);
 }
@@ -1964,7 +1992,31 @@ function applySettings(s) {
   renderer.shadowMap.enabled = s.shadows;
   lights.sun.castShadow = s.shadows;
   gridGroup.visible = s.grid;
-  gridGroup.scale.set(s.gridWidth / GRID_BASE_SIZE, 1, s.gridLength / GRID_BASE_SIZE);
+  updateGrid(gridGroup, s);
+  applyStudioScale(lights, s.gridWidth, s.gridLength);
+
+  // Everything camera- and light-related scales with the work area so a 20 cm
+  // print bed can be framed and lit the same way the original 40 mm grid was.
+  const maxGrid = Math.max(s.gridWidth, s.gridLength);
+  scene.fog.near = maxGrid;
+  scene.fog.far = maxGrid * 3.5;
+  perspectiveCamera.far = Math.min(2000, Math.max(300, maxGrid * 8));
+  perspectiveCamera.updateProjectionMatrix();
+  if (orthoCamera) {
+    orthoCamera.far = perspectiveCamera.far;
+    orthoCamera.updateProjectionMatrix();
+  }
+  controls.minDistance = Math.max(1, maxGrid * 0.01);
+  controls.maxDistance = Math.max(80, Math.hypot(s.gridWidth, s.gridLength) * 1.4);
+
+  computeHomeView(s);
+  if (homeApplied === false) {
+    homeApplied = true;
+    camera.position.copy(homeView.position);
+    controls.target.copy(homeView.target);
+    camera.lookAt(homeView.target);
+    controls.update();
+  }
 
   // Grid labels lie flat near the corners and scale with the grid.
   const labelColor = gridLabelColor(s.background);
@@ -1974,8 +2026,34 @@ function applySettings(s) {
   layoutGridLabel(titleLabel, s, TITLE_LABEL_FRAC, -1, 1); // lower-left
 }
 
+let gridBeforeImperial = null;
+
+// Imperial grids show 1 in squares, which need more room than the 40 mm metric
+// default, so the work area grows when switching to imperial and is restored
+// when switching back. Sizes the user picked themselves are never overwritten.
+function applyUnitGridSize() {
+  const imperial = gridFamily(settings) === "imperial";
+  const isAuto = Math.abs(settings.gridWidth - IMPERIAL_GRID_SIZE) < 0.01 && Math.abs(settings.gridLength - IMPERIAL_GRID_SIZE) < 0.01;
+  if (imperial) {
+    const largest = Math.max(settings.gridWidth, settings.gridLength);
+    if (largest < IMPERIAL_GRID_SIZE - 0.01) {
+      gridBeforeImperial = { gridWidth: settings.gridWidth, gridLength: settings.gridLength };
+      settings.gridWidth = IMPERIAL_GRID_SIZE;
+      settings.gridLength = IMPERIAL_GRID_SIZE;
+    }
+    return;
+  }
+  if (gridBeforeImperial && isAuto) {
+    settings.gridWidth = gridBeforeImperial.gridWidth;
+    settings.gridLength = gridBeforeImperial.gridLength;
+  }
+  gridBeforeImperial = null;
+}
+
 function updateSetting(changes) {
+  const previousFamily = gridFamily(settings);
   Object.assign(settings, changes);
+  if (gridFamily(settings) !== previousFamily) applyUnitGridSize();
   applySettings(settings);
   saveSettings(settings);
   updateMeasure();
@@ -2018,6 +2096,7 @@ function animate() {
   requestAnimationFrame(animate);
   updateViewTween(performance.now());
   controls.update();
+  updateGridLod(gridGroup, camera, renderer.domElement.clientHeight);
   viewCube.update();
   renderer.render(scene, camera);
 }

@@ -15,8 +15,6 @@ Colours: add predefined pallettes
 
 ruler overlay
 
-improve grid...  1cm as 1mm squares etc
-
 front panel designer mode?
 
 Option to add textures to objects? Could have this as a separate page/software?
@@ -24,6 +22,8 @@ Option to add textures to objects? Could have this as a separate page/software?
 ________________________________________
 
 DONE:
+
+improved grid...  1cm as 1mm squares etc
 
 option for reference image?
 

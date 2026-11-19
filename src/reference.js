@@ -3,7 +3,7 @@ import * as THREE from "three";
 // Reference images are flat, unlit quads used to trace over a picture. They are
 // ordinary meshes (so selection, undo and the gizmo work) but carry a
 // referenceImage flag so booleans, grouping and export skip them.
-export const DEFAULT_REFERENCE_SIZE = 10;
+export const DEFAULT_REFERENCE_SIZE = 100;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGE_EDGE = 1024;
 

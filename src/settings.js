@@ -5,9 +5,9 @@ export const DEFAULT_SETTINGS = {
   shadows: true,
   grid: true,
   units: 'mm',
-  gridWidth: 40,
-  gridLength: 40,
-  version: 2,
+  gridWidth: 200,
+  gridLength: 200,
+  version: 3,
 };
 
 const UNIT_FACTORS = {
@@ -67,10 +67,17 @@ export function loadSettings() {
       // v1 wrote the old light background (#dde4ec) whenever any setting changed.
       // Treat that exact value as "not customised" so the new black default
       // applies to existing installs; other colours are kept.
-      if (!stored.version) {
-        if (settings.background === '#dde4ec') settings.background = DEFAULT_SETTINGS.background;
-        settings.version = DEFAULT_SETTINGS.version;
+      if (stored.version === undefined) {
+        if (settings.background === '#dde4ec') {
+          settings.background = DEFAULT_SETTINGS.background;
+        }
       }
+      // v3 moved the default work area from 40 mm to a 20 cm print bed.
+      if ((stored.version || 1) < 3 && settings.gridWidth === 40 && settings.gridLength === 40) {
+        settings.gridWidth = DEFAULT_SETTINGS.gridWidth;
+        settings.gridLength = DEFAULT_SETTINGS.gridLength;
+      }
+      settings.version = DEFAULT_SETTINGS.version;
       return settings;
     }
   } catch {

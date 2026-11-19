@@ -60,7 +60,7 @@ function extrudeOptions(depth, b) {
 // All primitives are created with their base resting on the ground plane (y = 0),
 // so they drop in nicely on the grid.
 
-export function createBox({ w = 2, h = 2, d = 2, bevel = 0, steps = 3, color = 0x4a90d9 } = {}) {
+export function createBox({ w = 20, h = 20, d = 20, bevel = 0, steps = 3, color = 0x4a90d9 } = {}) {
   const b = clampBevel(bevel, Math.min(w, h, d) / 2);
   // `steps` is how many facets the rounded bevel uses per quarter arc
   // (1 = a single chamfer facet, higher = smoother).
@@ -73,7 +73,7 @@ export function createBox({ w = 2, h = 2, d = 2, bevel = 0, steps = 3, color = 0
   return mesh;
 }
 
-export function createCylinder({ r = 1, h = 2, sides = SEGMENTS, bevel = 0, color = 0x59a96a } = {}) {
+export function createCylinder({ r = 10, h = 20, sides = SEGMENTS, bevel = 0, color = 0x59a96a } = {}) {
   const seg = Math.max(3, Math.round(sides));
   const b = clampBevel(bevel, Math.min(r, h / 2));
   const geometry = b > 0
@@ -84,7 +84,7 @@ export function createCylinder({ r = 1, h = 2, sides = SEGMENTS, bevel = 0, colo
   return mesh;
 }
 
-export function createSphere({ r = 1, steps = SEGMENTS, color = 0xf2b134 } = {}) {
+export function createSphere({ r = 10, steps = SEGMENTS, color = 0xf2b134 } = {}) {
   const seg = Math.max(3, Math.round(steps));
   const heightSeg = Math.max(2, Math.round((seg * 2) / 3));
   const mesh = build(new THREE.SphereGeometry(r, seg, heightSeg), color, 'sphere', { r, steps: seg });
@@ -92,7 +92,7 @@ export function createSphere({ r = 1, steps = SEGMENTS, color = 0xf2b134 } = {})
   return mesh;
 }
 
-export function createCone({ r = 1, h = 2, sides = SEGMENTS, bevel = 0, color = 0xe8844d } = {}) {
+export function createCone({ r = 10, h = 20, sides = SEGMENTS, bevel = 0, color = 0xe8844d } = {}) {
   const seg = Math.max(3, Math.round(sides));
   const b = clampBevel(bevel, Math.min(r, h / 2));
   const geometry = b > 0
@@ -103,14 +103,14 @@ export function createCone({ r = 1, h = 2, sides = SEGMENTS, bevel = 0, color = 
   return mesh;
 }
 
-export function createTorus({ r = 1, tube = 0.4, sides = SEGMENTS, color = 0x9b6dd6 } = {}) {
+export function createTorus({ r = 10, tube = 4, sides = SEGMENTS, color = 0x9b6dd6 } = {}) {
   const seg = Math.max(3, Math.round(sides));
   const mesh = build(new THREE.TorusGeometry(r, tube, 24, seg), color, 'torus', { r, tube, sides: seg });
   mesh.position.y = r;
   return mesh;
 }
 
-export function createWedge({ w = 2, h = 2, d = 2, bevel = 0, color = 0x5a9bd4 } = {}) {
+export function createWedge({ w = 20, h = 20, d = 20, bevel = 0, color = 0x5a9bd4 } = {}) {
   const b = clampBevel(bevel, Math.min(w, h, d) / 4);
   // Inset the profile and depth by the bevel so the extrusion still measures
   // w × h × d once the bevel grows it back out.
@@ -129,7 +129,7 @@ export function createWedge({ w = 2, h = 2, d = 2, bevel = 0, color = 0x5a9bd4 }
   return mesh;
 }
 
-export function createPyramid({ s = 1.4, h = 2, sides = 4, bevel = 0, color = 0xe8a33d } = {}) {
+export function createPyramid({ s = 20, h = 20, sides = 4, bevel = 0, color = 0xe8a33d } = {}) {
   const seg = Math.max(3, Math.round(sides));
   const b = clampBevel(bevel, Math.min(s, h / 2));
   const geometry = b > 0
@@ -141,7 +141,7 @@ export function createPyramid({ s = 1.4, h = 2, sides = 4, bevel = 0, color = 0x
   return mesh;
 }
 
-export function createHemisphere({ r = 1, steps = SEGMENTS, color = 0x4aa88a } = {}) {
+export function createHemisphere({ r = 10, steps = SEGMENTS, color = 0x4aa88a } = {}) {
   const seg = Math.max(3, Math.round(steps));
   const heightSeg = Math.max(2, Math.round(seg / 3));
   const geometry = new THREE.SphereGeometry(r, seg, heightSeg, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -150,7 +150,7 @@ export function createHemisphere({ r = 1, steps = SEGMENTS, color = 0x4aa88a } =
   return mesh;
 }
 
-export function createPrism({ r = 1, h = 2, sides = 3, bevel = 0, color = 0x7d6bd4 } = {}) {
+export function createPrism({ r = 10, h = 20, sides = 3, bevel = 0, color = 0x7d6bd4 } = {}) {
   const seg = Math.max(3, Math.round(sides));
   const b = clampBevel(bevel, Math.min(r, h / 2));
   const geometry = b > 0
@@ -176,7 +176,7 @@ function starShape(outer, inner, points) {
   return shape;
 }
 
-export function createStar({ outer = 1.2, points = 5, d = 0.4, bevel = 0, color = 0xedd24a } = {}) {
+export function createStar({ outer = 12, points = 5, d = 4, bevel = 0, color = 0xedd24a } = {}) {
   const p = Math.max(3, Math.round(points || 5));
   const b = clampBevel(bevel, Math.min(outer * 0.6, d / 2));
   // Inset the outline/depth by the bevel so the finished star keeps its size.
@@ -199,17 +199,17 @@ export function createStar({ outer = 1.2, points = 5, d = 0.4, bevel = 0, color 
 const param = (key, label, min, max, step = 0.1, unit = true, def = min) => ({ key, label, min, max, step, unit, def });
 
 export const SHAPE_DEFS = {
-  box: { label: 'Box', factory: createBox, params: [param('w', 'Width', 0.1, 20), param('h', 'Height', 0.1, 20), param('d', 'Depth', 0.1, 20), param('bevel', 'Bevel', 0, 2, 0.1, true, 0), param('steps', 'Steps', 1, 8, 1, false, 3)] },
-  cylinder: { label: 'Cylinder', factory: createCylinder, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 48), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
-  sphere: { label: 'Sphere', factory: createSphere, params: [param('r', 'Radius', 0.1, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
-  cone: { label: 'Cone', factory: createCone, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 48), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
-  torus: { label: 'Torus', factory: createTorus, params: [param('r', 'Radius', 0.1, 10), param('tube', 'Tube', 0.05, 5, 0.05), param('sides', 'Sides', 3, 64, 1, false, 48)] },
-  wedge: { label: 'Wedge', factory: createWedge, params: [param('w', 'Width', 0.1, 20), param('h', 'Height', 0.1, 20), param('d', 'Depth', 0.1, 20), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
-  pyramid: { label: 'Pyramid', factory: createPyramid, params: [param('s', 'Base', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 4), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
-  hemisphere: { label: 'Hemisphere', factory: createHemisphere, params: [param('r', 'Radius', 0.1, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
-  prism: { label: 'Prism', factory: createPrism, params: [param('r', 'Radius', 0.1, 10), param('h', 'Height', 0.1, 20), param('sides', 'Sides', 3, 64, 1, false, 3), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
-  star: { label: 'Star', factory: createStar, params: [param('outer', 'Size', 0.1, 10), param('points', 'Points', 3, 12, 1, false), param('d', 'Thickness', 0.1, 5), param('bevel', 'Bevel', 0, 2, 0.1, true, 0)] },
-  reference: { label: 'Reference Image', factory: createReferenceImage, params: [param('w', 'Width', 1, 100, 0.5), param('h', 'Height', 1, 100, 0.5)] },
+  box: { label: 'Box', factory: createBox, params: [param('w', 'Width', 1, 200, 0.5, true, 20), param('h', 'Height', 1, 200, 0.5, true, 20), param('d', 'Depth', 1, 200, 0.5, true, 20), param('bevel', 'Bevel', 0, 5, 0.1, true, 0), param('steps', 'Steps', 1, 8, 1, false, 3)] },
+  cylinder: { label: 'Cylinder', factory: createCylinder, params: [param('r', 'Radius', 1, 100, 0.5, true, 10), param('h', 'Height', 1, 200, 0.5, true, 20), param('sides', 'Sides', 3, 64, 1, false, 48), param('bevel', 'Bevel', 0, 5, 0.1, true, 0)] },
+  sphere: { label: 'Sphere', factory: createSphere, params: [param('r', 'Radius', 1, 100, 0.5, true, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
+  cone: { label: 'Cone', factory: createCone, params: [param('r', 'Radius', 1, 100, 0.5, true, 10), param('h', 'Height', 1, 200, 0.5, true, 20), param('sides', 'Sides', 3, 64, 1, false, 48), param('bevel', 'Bevel', 0, 5, 0.1, true, 0)] },
+  torus: { label: 'Torus', factory: createTorus, params: [param('r', 'Radius', 1, 100, 0.5, true, 10), param('tube', 'Tube', 0.5, 50, 0.5, true, 4), param('sides', 'Sides', 3, 64, 1, false, 48)] },
+  wedge: { label: 'Wedge', factory: createWedge, params: [param('w', 'Width', 1, 200, 0.5, true, 20), param('h', 'Height', 1, 200, 0.5, true, 20), param('d', 'Depth', 1, 200, 0.5, true, 20), param('bevel', 'Bevel', 0, 5, 0.1, true, 0)] },
+  pyramid: { label: 'Pyramid', factory: createPyramid, params: [param('s', 'Base', 1, 100, 0.5, true, 20), param('h', 'Height', 1, 200, 0.5, true, 20), param('sides', 'Sides', 3, 64, 1, false, 4), param('bevel', 'Bevel', 0, 5, 0.1, true, 0)] },
+  hemisphere: { label: 'Hemisphere', factory: createHemisphere, params: [param('r', 'Radius', 1, 100, 0.5, true, 10), param('steps', 'Steps', 3, 64, 1, false, 48)] },
+  prism: { label: 'Prism', factory: createPrism, params: [param('r', 'Radius', 1, 100, 0.5, true, 10), param('h', 'Height', 1, 200, 0.5, true, 20), param('sides', 'Sides', 3, 64, 1, false, 3), param('bevel', 'Bevel', 0, 5, 0.1, true, 0)] },
+  star: { label: 'Star', factory: createStar, params: [param('outer', 'Size', 1, 100, 0.5, true, 12), param('points', 'Points', 3, 12, 1, false), param('d', 'Thickness', 0.5, 50, 0.5, true, 4), param('bevel', 'Bevel', 0, 5, 0.1, true, 0)] },
+  reference: { label: 'Reference Image', factory: createReferenceImage, params: [param('w', 'Width', 10, 300, 1, true, 100), param('h', 'Height', 10, 300, 1, true, 100)] },
 };
 
 export const SHAPE_FACTORIES = Object.fromEntries(

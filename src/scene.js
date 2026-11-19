@@ -3,8 +3,6 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-export const GRID_BASE_SIZE = 40;
-
 // Default ("home") view the camera resets to.
 export const HOME_CAMERA_POSITION = new THREE.Vector3(9, 8, 13);
 export const HOME_TARGET = new THREE.Vector3(0, 0.6, 0);
@@ -32,8 +30,8 @@ export function createCamera(container) {
   const camera = new THREE.PerspectiveCamera(
     50,
     container.clientWidth / container.clientHeight,
-    0.1,
-    300
+    0.5,
+    2000
   );
   camera.position.copy(HOME_CAMERA_POSITION);
   camera.lookAt(HOME_TARGET);
@@ -68,48 +66,15 @@ export function createGround(scene) {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
+  // A shadow catcher must not write depth or it can fight the grid above it.
+  ground.material.depthWrite = false;
+  ground.renderOrder = 0;
   scene.add(ground);
 
+  // The work grid lines are rebuilt by grid.js whenever the units or the
+  // work-area size change, so they keep exact real-world spacings.
   const gridGroup = new THREE.Group();
   scene.add(gridGroup);
-
-  // Fine sub-grid (0.5 unit) → minor (1 unit) → major (5 unit), lightest to darkest.
-  const fine = new THREE.GridHelper(40, 80, 0xd8e0e8, 0xd8e0e8);
-  fine.position.y = 0.002;
-  gridGroup.add(fine);
-
-  const minor = new THREE.GridHelper(40, 40, 0xc4ceda, 0xc4ceda);
-  minor.position.y = 0.004;
-  gridGroup.add(minor);
-
-  const major = new THREE.GridHelper(40, 8, 0x9aa6b8, 0x9aa6b8);
-  major.position.y = 0.006;
-  gridGroup.add(major);
-
-  // A slightly darker frame around the grid edge so the working bounds read clearly.
-  const half = 40 / 2;
-  const edge = 0.25;
-  const inner = half - edge;
-  const frame = new THREE.Shape();
-  frame.moveTo(-half, -half);
-  frame.lineTo(half, -half);
-  frame.lineTo(half, half);
-  frame.lineTo(-half, half);
-  frame.lineTo(-half, -half);
-  const frameHole = new THREE.Path();
-  frameHole.moveTo(-inner, inner);
-  frameHole.lineTo(inner, inner);
-  frameHole.lineTo(inner, -inner);
-  frameHole.lineTo(-inner, -inner);
-  frameHole.lineTo(-inner, inner);
-  frame.holes.push(frameHole);
-  const border = new THREE.Mesh(
-    new THREE.ShapeGeometry(frame),
-    new THREE.MeshBasicMaterial({ color: 0x7f8a98, side: THREE.DoubleSide })
-  );
-  border.rotation.x = -Math.PI / 2;
-  border.position.y = 0.01;
-  gridGroup.add(border);
 
   return { ground, gridGroup };
 }
@@ -127,12 +92,44 @@ export function applyEnvironment(renderer, scene) {
   }
 }
 
+
+let studioScale = 0;
+
+// Size the sun and its shadow camera from the work area so a 20 cm bed is fully
+// lit without wasting shadow resolution on a small grid.
+export function applyStudioScale(lights, width, length) {
+  const max = Math.max(width || 40, length || 40);
+  if (Math.abs(studioScale - max) < 0.01) return;
+  studioScale = max;
+  const sun = lights.sun;
+  const reach = Math.max(20, max * 0.7);
+  sun.position.set(max * 0.3, max * 0.55, max * 0.25);
+  sun.shadow.camera.left = -reach;
+  sun.shadow.camera.right = reach;
+  sun.shadow.camera.top = reach;
+  sun.shadow.camera.bottom = -reach;
+  sun.shadow.camera.near = 0.5;
+  sun.shadow.camera.far = max * 3;
+  sun.shadow.camera.updateProjectionMatrix();
+  const size = max > 120 ? 4096 : 2048;
+  // Bias scaled to the shadow texel so it stays stable at any work-area size.
+  const texel = (2 * reach) / size;
+  sun.shadow.bias = -texel * 0.5;
+  sun.shadow.normalBias = texel * 0.5;
+  if (sun.shadow.mapSize.x !== size) {
+    sun.shadow.mapSize.set(size, size);
+    if (sun.shadow.map) {
+      sun.shadow.map.dispose();
+      sun.shadow.map = null;
+    }
+  }
+}
 export function createControls(camera, domElement) {
   const controls = new OrbitControls(camera, domElement);
   controls.target.copy(HOME_TARGET);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.minDistance = 4;
+  controls.minDistance = 2;
   controls.maxDistance = 80;
   controls.maxPolarAngle = Math.PI / 2 - 0.03; // stay above the ground
   // Left mouse is reserved for selecting / dragging shapes.
