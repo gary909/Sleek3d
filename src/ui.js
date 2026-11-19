@@ -14,6 +14,7 @@ export function createUI({
   onDelete,
   onBoolean,
   onExport,
+  onImport,
   onReset,
   onSnap,
   onSetMode,
@@ -99,6 +100,28 @@ export function createUI({
   intersectBtn.addEventListener('click', () => onBoolean('intersect'));
 
   document.getElementById('export').addEventListener('click', onExport);
+
+  const importBtn = document.getElementById('import');
+  const importInput = document.getElementById('import-file');
+  importBtn?.addEventListener('click', () => importInput.click());
+  importInput?.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const label = importBtn ? importBtn.textContent : '';
+    if (importBtn) {
+      importBtn.disabled = true;
+      importBtn.textContent = 'Importing...';
+    }
+    try {
+      await onImport(file);
+    } finally {
+      if (importBtn) {
+        importBtn.disabled = false;
+        importBtn.textContent = label;
+      }
+    }
+  });
   document.getElementById('reset').addEventListener('click', onReset);
   snapSelect.addEventListener('change', () => onSnap(Number(snapSelect.value)));
 

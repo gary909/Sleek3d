@@ -97,11 +97,16 @@ export function loadProject() {
   }
 }
 
+let warnedOverQuota = false;
+
 export function saveProject(shapes) {
   try {
     localStorage.setItem(STORAGE_KEY, serializeScene(shapes));
-  } catch {
-    // storage unavailable — ignore
+  } catch (error) {
+    if (!warnedOverQuota) {
+      warnedOverQuota = true;
+      console.warn('Autosave skipped: project too large for localStorage.', error && error.message);
+    }
   }
 }
 

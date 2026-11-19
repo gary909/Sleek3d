@@ -24,6 +24,7 @@ import { createUI, createSettingsPanel, initTooltips } from './ui.js';
 import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
+import { loadImportedFile } from './importer.js';
 import { loadSettings, saveSettings, getUnit, formatLength, SNAP_VALUES, snapLabel } from './settings.js';
 
 const container = document.getElementById('app');
@@ -416,6 +417,7 @@ const ui = createUI({
   onDelete,
   onBoolean,
   onExport,
+  onImport: importModel,
   onReset,
   onSnap,
   onSetMode,
@@ -552,6 +554,22 @@ async function addTextShape() {
   history.push(commandAdd(mesh));
   updateHistoryUI();
   scheduleSave();
+}
+
+async function importModel(file) {
+  try {
+    const wrapper = await loadImportedFile(file);
+    scene.add(wrapper);
+    state.shapes.push(wrapper);
+    interaction.setSelected([wrapper]);
+    history.push(commandAdd(wrapper));
+    updateHistoryUI();
+    frameObjects([wrapper]);
+    scheduleSave();
+  } catch (error) {
+    console.error('Import failed:', error);
+    alert(error.message || 'Could not import that file.');
+  }
 }
 
 function removeShape(object) {

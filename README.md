@@ -11,8 +11,6 @@ ___________________________________________
 
 TO DO:
 
-Add import 
-
 option for reference image?
 
 Colours: add predefined pallettes
@@ -28,6 +26,8 @@ Option to add textures to objects? Could have this as a separate page/software?
 ________________________________________
 
 DONE:
+
+Add import
 
 Export...  opens window with .stl, .obj file export etc. View tri amount, option to decimate
 
