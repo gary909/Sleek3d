@@ -11,13 +11,17 @@ ___________________________________________
 
 TO DO:
 
-Colours: add predefined pallettes
+improve shadows
+
+add lock/unlock editing
 
 ruler overlay
 
 front panel designer mode?
 
 Option to add textures to objects? Could have this as a separate page/software?
+
+Colours: add predefined pallettes
 
 ________________________________________
 
