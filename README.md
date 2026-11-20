@@ -11,7 +11,11 @@ ___________________________________________
 
 TO DO:
 
-show size on
+Hide 'allign box' unless two shapes selected
+
+Fix size info box size, or move to inspector?
+
+refine: 'show size on hover' stlying
 
 ruler overlay
 

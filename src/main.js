@@ -1451,11 +1451,10 @@ function updateFrameFromSelection() {
 function showHandleRuler(id, box) {
   const size = frameHandleSize();
   const y = box.min.y + 0.02;
-  const fmt = (v) => snapLabel(v, settings);
+  const fmt = (v) => formatLength(v, settings) + " " + getUnit(settings);
   if (id === "top") {
     const centre = box.getCenter(new THREE.Vector3());
     showResizeMeasures(resizeFrame, {
-      camera,
       size,
       measures: [
         {
@@ -1463,7 +1462,6 @@ function showHandleRuler(id, box) {
           from: new THREE.Vector3(centre.x, box.min.y, centre.z),
           to: new THREE.Vector3(centre.x, box.max.y, centre.z),
           offset: new THREE.Vector3(size * 2.9, 0, 0),
-          align: false,
         },
       ],
     });
@@ -1477,7 +1475,6 @@ function showHandleRuler(id, box) {
   const outwardX = Math.sign(point.x - oppositeX) || 1;
   const outwardZ = Math.sign(point.z - oppositeZ) || 1;
   showResizeMeasures(resizeFrame, {
-    camera,
     size,
     measures: [
       {
@@ -1485,14 +1482,12 @@ function showHandleRuler(id, box) {
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(oppositeX, y, point.z),
         offset: new THREE.Vector3(0, size * 1.1, outwardZ * size * 1.4),
-        align: true,
       },
       {
         text: "D " + fmt(box.max.z - box.min.z),
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(point.x, y, oppositeZ),
         offset: new THREE.Vector3(outwardX * size * 1.4, size * 1.1, 0),
-        align: true,
       },
     ],
   });

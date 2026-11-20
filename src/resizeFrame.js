@@ -203,20 +203,8 @@ function drawChip(measure, text) {
   measure.texture.needsUpdate = true;
 }
 
-// Screen-space angle of an edge, so each chip can lie along its own dimension
-// line. Normalised into +-90 degrees so a label never renders upside-down.
-function screenAngle(camera, from, to) {
-  if (!camera) return 0;
-  const a = from.clone().project(camera);
-  const b = to.clone().project(camera);
-  let angle = Math.atan2(b.y - a.y, b.x - a.x);
-  if (angle > Math.PI / 2) angle -= Math.PI;
-  if (angle < -Math.PI / 2) angle += Math.PI;
-  return angle;
-}
-
-function layoutMeasure(measure, spec, size, camera) {
-  const { from, to, offset, text, align } = spec;
+function layoutMeasure(measure, spec, size) {
+  const { from, to, offset, text } = spec;
   const dir = new THREE.Vector3().subVectors(to, from);
   const len = dir.length();
   const radius = Math.max(0.02, size * 0.05);
@@ -227,17 +215,16 @@ function layoutMeasure(measure, spec, size, camera) {
   measure.chip.position.copy(from).addScaledVector(dir, 0.5);
   if (offset) measure.chip.position.add(offset);
   measure.chip.scale.set(size * CHIP_SCALE_H * measure.aspect, size * CHIP_SCALE_H, 1);
-  measure.chip.material.rotation = align === true ? screenAngle(camera, from, to) : 0;
 }
 
 // Draw up to two dimension readouts; unused slots are hidden, so the height
 // handle still shows a single box.
-export function showResizeMeasures(frame, { measures, size, camera }) {
+export function showResizeMeasures(frame, { measures, size }) {
   frame.ruler.visible = true;
   frame.measures.forEach((measure, i) => {
     const spec = measures[i];
     measure.group.visible = Boolean(spec);
-    if (spec) layoutMeasure(measure, spec, size, camera);
+    if (spec) layoutMeasure(measure, spec, size);
   });
 }
 
