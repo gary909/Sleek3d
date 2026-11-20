@@ -20,7 +20,7 @@ import {
 } from './scene.js';
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
-import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeRuler, hideResizeRuler } from './resizeFrame.js';
+import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures } from './resizeFrame.js';
 import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale } from './selectionResize.js';
 import { createInteraction } from './interaction.js';
 import { createUI, createSettingsPanel, initTooltips } from './ui.js';
@@ -1451,28 +1451,50 @@ function updateFrameFromSelection() {
 function showHandleRuler(id, box) {
   const size = frameHandleSize();
   const y = box.min.y + 0.02;
-  const unit = getUnit(settings);
-  const fmt = (v) => formatLength(v, settings) + " " + unit;
-  const point = cornerPoints(box)[id];
+  const fmt = (v) => snapLabel(v, settings);
   if (id === "top") {
     const centre = box.getCenter(new THREE.Vector3());
-    showResizeRuler(resizeFrame, {
-      text: "H " + fmt(box.max.y - box.min.y),
-      from: new THREE.Vector3(centre.x, box.min.y, centre.z),
-      to: new THREE.Vector3(centre.x, box.max.y, centre.z),
-      chipOffset: new THREE.Vector3(size * 3.2, 0, 0),
+    showResizeMeasures(resizeFrame, {
+      camera,
       size,
+      measures: [
+        {
+          text: "H " + fmt(box.max.y - box.min.y),
+          from: new THREE.Vector3(centre.x, box.min.y, centre.z),
+          to: new THREE.Vector3(centre.x, box.max.y, centre.z),
+          offset: new THREE.Vector3(size * 2.9, 0, 0),
+          align: false,
+        },
+      ],
     });
     return;
   }
+  const point = cornerPoints(box)[id];
   if (!point) return;
   const oppositeX = id === "nw" || id === "sw" ? box.max.x : box.min.x;
-  showResizeRuler(resizeFrame, {
-    text: "W " + fmt(box.max.x - box.min.x) + "  ·  D " + fmt(box.max.z - box.min.z),
-    from: new THREE.Vector3(point.x, y, point.z),
-    to: new THREE.Vector3(oppositeX, y, point.z),
-    chipOffset: new THREE.Vector3(0, size * 1.8, 0),
+  const oppositeZ = id === "nw" || id === "ne" ? box.max.z : box.min.z;
+  // One chip per edge line, both pushed outside the shape so they never cover it.
+  const outwardX = Math.sign(point.x - oppositeX) || 1;
+  const outwardZ = Math.sign(point.z - oppositeZ) || 1;
+  showResizeMeasures(resizeFrame, {
+    camera,
     size,
+    measures: [
+      {
+        text: "W " + fmt(box.max.x - box.min.x),
+        from: new THREE.Vector3(point.x, y, point.z),
+        to: new THREE.Vector3(oppositeX, y, point.z),
+        offset: new THREE.Vector3(0, size * 1.1, outwardZ * size * 1.4),
+        align: true,
+      },
+      {
+        text: "D " + fmt(box.max.z - box.min.z),
+        from: new THREE.Vector3(point.x, y, point.z),
+        to: new THREE.Vector3(point.x, y, oppositeZ),
+        offset: new THREE.Vector3(outwardX * size * 1.4, size * 1.1, 0),
+        align: true,
+      },
+    ],
   });
 }
 
@@ -1483,7 +1505,7 @@ function frameHandleHover(id) {
     showHandleRuler(id, unionBounds(state.selected));
   } else {
     renderer.domElement.style.cursor = "";
-    hideResizeRuler(resizeFrame);
+    hideResizeMeasures(resizeFrame);
   }
 }
 
@@ -1588,7 +1610,7 @@ function frameDragEnd() {
   }));
   const changed = snapshots.some((before, i) => before.position.equals(after[i].position) === false || before.scale.equals(after[i].scale) === false);
   frameDrag = null;
-  hideResizeRuler(resizeFrame);
+  hideResizeMeasures(resizeFrame);
   syncGizmo();
   if (changed) {
     history.push({ undo: () => restoreFrameStates(snapshots), redo: () => restoreFrameStates(after) });

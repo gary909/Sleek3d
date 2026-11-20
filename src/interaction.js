@@ -241,9 +241,14 @@ export function createInteraction({
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
   renderer.domElement.addEventListener('pointermove', onPointerMove);
   renderer.domElement.addEventListener('pointerleave', () => {
+    if (frameDrag !== null) return;
     if (hovered !== null) {
       hovered = null;
       applyHighlight();
+    }
+    if (hoveredHandle !== null) {
+      hoveredHandle = null;
+      onFrameHover?.(null);
     }
   });
   window.addEventListener('pointerup', onPointerUp);

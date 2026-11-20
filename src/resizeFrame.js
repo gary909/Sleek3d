@@ -5,6 +5,9 @@ const HANDLE_PX = 11;
 const OUTLINE_PX = 1.5;
 const BASE_COLOR = 0xffffff;
 const HOVER_COLOR = 0x4a90d9;
+const UP = new THREE.Vector3(0, 1, 0);
+const CHIP_H = 128; // chip canvas height in px; the width follows the text
+const CHIP_SCALE_H = 1.15; // chip height as a multiple of the shared label size
 
 function makeHandleTexture() {
   const size = 64;
@@ -28,6 +31,33 @@ function worldPerPixel(camera, distance, viewportHeight) {
   }
   const fov = THREE.MathUtils.degToRad(camera.fov);
   return (2 * distance * Math.tan(fov / 2)) / viewportHeight;
+}
+
+// One dimension readout: a thin rod spanning a single edge plus a label chip at
+// its midpoint. The frame owns two of these so width and depth each get their
+// own chip on their own edge line instead of sharing one combined label.
+function createMeasure() {
+  const group = new THREE.Group();
+  group.visible = false;
+
+  const rod = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, 1, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false })
+  );
+  rod.renderOrder = 990;
+  group.add(rod);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 384;
+  canvas.height = CHIP_H;
+  const ctx = canvas.getContext("2d");
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const chip = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false }));
+  chip.renderOrder = 996;
+  group.add(chip);
+
+  return { group, rod, chip, canvas, ctx, texture, aspect: canvas.width / canvas.height, text: "" };
 }
 
 export function createResizeFrame() {
@@ -64,25 +94,11 @@ export function createResizeFrame() {
 
   const ruler = new THREE.Group();
   ruler.visible = false;
-  const rod = new THREE.Mesh(
-    new THREE.CylinderGeometry(1, 1, 1, 8),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false })
-  );
-  rod.renderOrder = 990;
-  ruler.add(rod);
-
-  const chipCanvas = document.createElement("canvas");
-  chipCanvas.width = 512;
-  chipCanvas.height = 128;
-  const chipCtx = chipCanvas.getContext("2d");
-  const chipTexture = new THREE.CanvasTexture(chipCanvas);
-  chipTexture.minFilter = THREE.LinearFilter;
-  const chip = new THREE.Sprite(new THREE.SpriteMaterial({ map: chipTexture, transparent: true, depthTest: false, depthWrite: false }));
-  chip.renderOrder = 996;
-  ruler.add(chip);
+  const measures = [createMeasure(), createMeasure()];
+  measures.forEach((measure) => ruler.add(measure.group));
   group.add(ruler);
 
-  return { group, outline, handles, top, ruler, rod, chip, chipCtx, chipCanvas, chipTexture };
+  return { group, outline, handles, top, ruler, measures };
 }
 
 export function updateResizeFrame(frame, { box, camera, viewportHeight, visible }) {
@@ -160,40 +176,71 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawChip(frame, text) {
-  const ctx = frame.chipCtx;
-  const w = frame.chipCanvas.width;
-  const h = frame.chipCanvas.height;
-  ctx.clearRect(0, 0, w, h);
+function drawChip(measure, text) {
+  measure.text = text;
+  const ctx = measure.ctx;
+  const fontFor = (px) => "bold " + px + "px ui-monospace, Menlo, Consolas, monospace";
+  let px = 64;
+  ctx.font = fontFor(px);
+  let textWidth = ctx.measureText(text).width;
+  while (textWidth > 460 && px > 20) {
+    px -= 4;
+    ctx.font = fontFor(px);
+    textWidth = ctx.measureText(text).width;
+  }
+  const w = Math.max(132, Math.ceil(textWidth + 88));
+  if (measure.canvas.width !== w) measure.canvas.width = w;
+  ctx.font = fontFor(px);
+  ctx.clearRect(0, 0, w, CHIP_H);
   ctx.fillStyle = "rgba(20, 24, 28, 0.9)";
-  roundRect(ctx, 4, 4, w - 8, h - 8, 26);
+  roundRect(ctx, 4, 4, w - 8, CHIP_H - 8, 30);
   ctx.fill();
   ctx.fillStyle = "#ffffff";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  let size = 60;
-  ctx.font = "bold " + size + "px ui-monospace, Menlo, Consolas, monospace";
-  while (ctx.measureText(text).width > w - 48 && size > 20) {
-    size -= 4;
-    ctx.font = "bold " + size + "px ui-monospace, Menlo, Consolas, monospace";
-  }
-  ctx.fillText(text, w / 2, h / 2 + 2);
-  frame.chipTexture.needsUpdate = true;
+  ctx.fillText(text, w / 2, CHIP_H / 2 + 2);
+  measure.aspect = w / CHIP_H;
+  measure.texture.needsUpdate = true;
 }
 
-export function showResizeRuler(frame, { text, from, to, chipOffset, size }) {
-  frame.ruler.visible = true;
+// Screen-space angle of an edge, so each chip can lie along its own dimension
+// line. Normalised into +-90 degrees so a label never renders upside-down.
+function screenAngle(camera, from, to) {
+  if (!camera) return 0;
+  const a = from.clone().project(camera);
+  const b = to.clone().project(camera);
+  let angle = Math.atan2(b.y - a.y, b.x - a.x);
+  if (angle > Math.PI / 2) angle -= Math.PI;
+  if (angle < -Math.PI / 2) angle += Math.PI;
+  return angle;
+}
+
+function layoutMeasure(measure, spec, size, camera) {
+  const { from, to, offset, text, align } = spec;
   const dir = new THREE.Vector3().subVectors(to, from);
   const len = dir.length();
   const radius = Math.max(0.02, size * 0.05);
-  frame.rod.position.copy(from).addScaledVector(dir, 0.5);
-  frame.rod.scale.set(radius, Math.max(len, 1e-4), radius);
-  if (len > 1e-5) frame.rod.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-  drawChip(frame, text);
-  frame.chip.position.copy(from).addScaledVector(dir, 0.5).add(chipOffset);
-  frame.chip.scale.set(size * 6, size * 1.5, 1);
+  measure.rod.position.copy(from).addScaledVector(dir, 0.5);
+  measure.rod.scale.set(radius, Math.max(len, 1e-4), radius);
+  if (len > 1e-5) measure.rod.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+  drawChip(measure, text);
+  measure.chip.position.copy(from).addScaledVector(dir, 0.5);
+  if (offset) measure.chip.position.add(offset);
+  measure.chip.scale.set(size * CHIP_SCALE_H * measure.aspect, size * CHIP_SCALE_H, 1);
+  measure.chip.material.rotation = align === true ? screenAngle(camera, from, to) : 0;
 }
 
-export function hideResizeRuler(frame) {
+// Draw up to two dimension readouts; unused slots are hidden, so the height
+// handle still shows a single box.
+export function showResizeMeasures(frame, { measures, size, camera }) {
+  frame.ruler.visible = true;
+  frame.measures.forEach((measure, i) => {
+    const spec = measures[i];
+    measure.group.visible = Boolean(spec);
+    if (spec) layoutMeasure(measure, spec, size, camera);
+  });
+}
+
+export function hideResizeMeasures(frame) {
   frame.ruler.visible = false;
 }
