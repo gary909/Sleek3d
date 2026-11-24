@@ -1448,7 +1448,7 @@ function updateFrameFromSelection() {
 
 function showHandleRuler(id, box) {
   const y = box.min.y + 0.02;
-  const fmt = (v) => formatLength(v, settings) + " " + getUnit(settings);
+  const fmt = (v) => formatLength(v, settings) + getUnit(settings);
   const centre = box.getCenter(new THREE.Vector3());
   const view = {
     camera,
@@ -1461,7 +1461,7 @@ function showHandleRuler(id, box) {
       ...view,
       measures: [
         {
-          text: "H " + fmt(box.max.y - box.min.y),
+          text: fmt(box.max.y - box.min.y),
           from: new THREE.Vector3(centre.x, box.min.y, centre.z),
           to: new THREE.Vector3(centre.x, box.max.y, centre.z),
           gapAxis: "width",
@@ -1479,12 +1479,12 @@ function showHandleRuler(id, box) {
     ...view,
     measures: [
       {
-        text: "W " + fmt(box.max.x - box.min.x),
+        text: fmt(box.max.x - box.min.x),
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(oppositeX, y, point.z),
       },
       {
-        text: "D " + fmt(box.max.z - box.min.z),
+        text: fmt(box.max.z - box.min.z),
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(point.x, y, oppositeZ),
         level: true,
