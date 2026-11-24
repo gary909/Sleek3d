@@ -7,7 +7,8 @@ const BASE_COLOR = 0xffffff;
 const HOVER_COLOR = 0x4a90d9;
 const UP = new THREE.Vector3(0, 1, 0);
 const CHIP_H = 128; // chip canvas height in px; the width follows the text
-const CHIP_SCALE_H = 1.15; // chip height as a multiple of the shared label size
+const CHIP_PX_H = 20; // chip box height in screen pixels, constant at any zoom
+const CHIP_GAP_PX = 7; // gap between a rod and its chip, in screen pixels
 
 function makeHandleTexture() {
   const size = 64;
@@ -177,6 +178,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 function drawChip(measure, text) {
+  if (measure.text === text) return; // unchanged text: reuse the texture
   measure.text = text;
   const ctx = measure.ctx;
   const fontFor = (px) => "bold " + px + "px ui-monospace, Menlo, Consolas, monospace";
@@ -203,28 +205,68 @@ function drawChip(measure, text) {
   measure.texture.needsUpdate = true;
 }
 
-function layoutMeasure(measure, spec, size) {
-  const { from, to, offset, text } = spec;
+// Screen-space perpendicular to the measured edge, pointing away from the
+// shape, expressed in world space. Keeps each chip beside its own rod without
+// covering the object, whatever the zoom or view angle.
+function chipDirection(camera, from, to, mid, centre, viewportWidth, viewportHeight) {
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  const a = from.clone().project(camera);
+  const b = to.clone().project(camera);
+  let px = -(b.y - a.y) * viewportHeight;
+  let py = (b.x - a.x) * viewportWidth;
+  const len = Math.hypot(px, py);
+  if (len < 1e-6) {
+    px = 1;
+    py = 0;
+  } else {
+    px /= len;
+    py /= len;
+  }
+  if (centre) {
+    const m = mid.clone().project(camera);
+    const c = centre.clone().project(camera);
+    if (px * (m.x - c.x) + py * (m.y - c.y) < 0) {
+      px = -px;
+      py = -py;
+    }
+  }
+  return right.multiplyScalar(px).addScaledVector(up, py).normalize();
+}
+
+function layoutMeasure(measure, spec, camera, viewportWidth, viewportHeight, centre) {
+  const { from, to, text, gapAxis, level } = spec;
+  const mid = from.clone().add(to).multiplyScalar(0.5);
   const dir = new THREE.Vector3().subVectors(to, from);
   const len = dir.length();
-  const radius = Math.max(0.02, size * 0.05);
-  measure.rod.position.copy(from).addScaledVector(dir, 0.5);
+  const wpp = worldPerPixel(camera, camera.position.distanceTo(mid), viewportHeight);
+  const radius = Math.max(0.6 * wpp, 1e-5); // ~1.2 px thick at any zoom
+  measure.rod.position.copy(mid);
   measure.rod.scale.set(radius, Math.max(len, 1e-4), radius);
   if (len > 1e-5) measure.rod.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
   drawChip(measure, text);
-  measure.chip.position.copy(from).addScaledVector(dir, 0.5);
-  if (offset) measure.chip.position.add(offset);
-  measure.chip.scale.set(size * CHIP_SCALE_H * measure.aspect, size * CHIP_SCALE_H, 1);
+  const h = CHIP_PX_H * wpp;
+  const w = h * measure.aspect;
+  const gap = (gapAxis === "width" ? w : h) / 2 + CHIP_GAP_PX * wpp;
+  measure.chip.position.copy(mid).addScaledVector(chipDirection(camera, from, to, mid, centre, viewportWidth, viewportHeight), gap);
+  if (level === true) {
+    // Keep this chip level with the midpoint of its line: the perpendicular
+    // offset can otherwise drop it below the line on steep (depth) edges.
+    const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    const chipNdc = measure.chip.position.clone().project(camera);
+    const midNdc = mid.clone().project(camera);
+    const lift = (midNdc.y - chipNdc.y) * wpp * viewportHeight * 0.5;
+    if (lift > 0) measure.chip.position.addScaledVector(up, lift);
+  }
+  measure.chip.scale.set(w, h, 1);
 }
 
-// Draw up to two dimension readouts; unused slots are hidden, so the height
-// handle still shows a single box.
-export function showResizeMeasures(frame, { measures, size }) {
+export function showResizeMeasures(frame, { measures, camera, viewportWidth, viewportHeight, centre }) {
   frame.ruler.visible = true;
   frame.measures.forEach((measure, i) => {
     const spec = measures[i];
     measure.group.visible = Boolean(spec);
-    if (spec) layoutMeasure(measure, spec, size);
+    if (spec) layoutMeasure(measure, spec, camera, viewportWidth, viewportHeight, centre);
   });
 }
 

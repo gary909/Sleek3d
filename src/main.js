@@ -1428,10 +1428,7 @@ function updateMeasure() {
 
 const FRAME_MIN_SIZE = 1;
 let frameDrag = null;
-
-function frameHandleSize() {
-  return Math.max(2, labelWorldHeight() * 0.55);
-}
+let activeHandle = null;
 
 function selectionFrameVisible() {
   return state.selected.length > 0 && lockedSelection() === false;
@@ -1445,23 +1442,29 @@ function updateFrameFromSelection() {
     viewportHeight: renderer.domElement.clientHeight,
     visible: selectionFrameVisible(),
   });
+  if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
   if (selectionFrameVisible() === false) renderer.domElement.style.cursor = "";
 }
 
 function showHandleRuler(id, box) {
-  const size = frameHandleSize();
   const y = box.min.y + 0.02;
   const fmt = (v) => formatLength(v, settings) + " " + getUnit(settings);
+  const centre = box.getCenter(new THREE.Vector3());
+  const view = {
+    camera,
+    viewportWidth: renderer.domElement.clientWidth,
+    viewportHeight: renderer.domElement.clientHeight,
+    centre,
+  };
   if (id === "top") {
-    const centre = box.getCenter(new THREE.Vector3());
     showResizeMeasures(resizeFrame, {
-      size,
+      ...view,
       measures: [
         {
           text: "H " + fmt(box.max.y - box.min.y),
           from: new THREE.Vector3(centre.x, box.min.y, centre.z),
           to: new THREE.Vector3(centre.x, box.max.y, centre.z),
-          offset: new THREE.Vector3(size * 2.9, 0, 0),
+          gapAxis: "width",
         },
       ],
     });
@@ -1471,29 +1474,27 @@ function showHandleRuler(id, box) {
   if (!point) return;
   const oppositeX = id === "nw" || id === "sw" ? box.max.x : box.min.x;
   const oppositeZ = id === "nw" || id === "ne" ? box.max.z : box.min.z;
-  // One chip per edge line, both pushed outside the shape so they never cover it.
-  const outwardX = Math.sign(point.x - oppositeX) || 1;
-  const outwardZ = Math.sign(point.z - oppositeZ) || 1;
+  // One chip per edge line; sizes and gaps are in screen pixels, not world units.
   showResizeMeasures(resizeFrame, {
-    size,
+    ...view,
     measures: [
       {
         text: "W " + fmt(box.max.x - box.min.x),
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(oppositeX, y, point.z),
-        offset: new THREE.Vector3(0, size * 1.1, outwardZ * size * 1.4),
       },
       {
         text: "D " + fmt(box.max.z - box.min.z),
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(point.x, y, oppositeZ),
-        offset: new THREE.Vector3(outwardX * size * 1.4, size * 1.1, 0),
+        level: true,
       },
     ],
   });
 }
 
 function frameHandleHover(id) {
+  activeHandle = id;
   setHoveredResizeHandle(resizeFrame, id);
   if (id && selectionFrameVisible()) {
     renderer.domElement.style.cursor = id === "top" ? "ns-resize" : "nwse-resize";
@@ -1521,6 +1522,7 @@ function dragPointFor(raycaster, box, id) {
 
 function frameDragStart(id) {
   if (selectionFrameVisible() === false) return;
+  activeHandle = id;
   const box = unionBounds(state.selected);
   frameDrag = {
     id,
