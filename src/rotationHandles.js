@@ -6,6 +6,10 @@ const ARC_THICK_PX = 1.2;
 const HEAD_PX = 7; // arrowhead length, screen pixels
 const HEAD_RADIUS_PX = 2.8;
 const GRAB_PX = 30; // invisible grab target size around each arc
+const MARK_STEP = Math.PI / 12; // 15 degrees between protractor marks
+const MARK_COUNT = 13; // enough for a 180 degree arc
+const MARK_PX = 7; // protractor mark length
+const MARK_BREADTH_PX = 1.6;
 const PITCH_GAP_PX = 40;
 const PITCH_RADIUS_PX = 34; // the pitch arrow faces the camera above the box
 const BASE_COLOR = 0xffffff;
@@ -60,11 +64,20 @@ function makeArc() {
   const grab = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
   grab.renderOrder = 993;
   group.add(grab);
-  return { group, arc, head, tick, originTick, grab, material };
+  // Protractor marks every 15 degrees along the arc.
+  const markMaterial = new THREE.MeshBasicMaterial({ color: BASE_COLOR, transparent: true, opacity: 0.5, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+  const marks = [];
+  for (let i = 0; i < MARK_COUNT; i = i + 1) {
+    const mark = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), markMaterial);
+    mark.renderOrder = 993;
+    group.add(mark);
+    marks.push(mark);
+  }
+  return { group, arc, head, tick, originTick, grab, marks, material };
 }
 
 // Span the arc from spanStart to spanStart + ARC_SPAN and put the head on its tip.
-function layoutArc(view, radiusWorld, spanStart, span, wpp) {
+function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true) {
   view.arc.rotation.z = spanStart;
   view.arc.geometry.dispose();
   // Tube ratio is taken from the real radius so the arc stays ARC_THICK_PX thick.
@@ -73,6 +86,15 @@ function layoutArc(view, radiusWorld, spanStart, span, wpp) {
   const aMid = spanStart + span / 2;
   view.grab.position.set(Math.cos(aMid) * radiusWorld, Math.sin(aMid) * radiusWorld, 0);
   view.grab.scale.set(GRAB_PX * wpp, GRAB_PX * wpp, 1);
+  view.marks.forEach((mark, i) => {
+    const a = spanStart + i * MARK_STEP;
+    const on = showMarks && a <= spanStart + span + 1e-6;
+    mark.visible = on;
+    if (!on) return;
+    mark.position.set(Math.cos(a) * radiusWorld, Math.sin(a) * radiusWorld, 0);
+    mark.rotation.z = a;
+    mark.scale.set(MARK_PX * wpp, MARK_BREADTH_PX * wpp, 1);
+  });
   const a = spanStart + span;
   const cos = Math.cos(a);
   const sin = Math.sin(a);
@@ -139,8 +161,8 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
       layoutArc(item.view, radius, -ARC_SPAN / 2, ARC_SPAN, wpp);
       // White tick: the current angle. Red tick: where the object started.
       const clamped = Math.max(-ARC_SPAN / 2, Math.min(ARC_SPAN / 2, turn));
-      const tickWidth = 8 * wpp;
-      const tickBreadth = 2 * wpp;
+      const tickWidth = 12 * wpp;
+      const tickBreadth = 2.6 * wpp;
       item.view.tick.visible = Math.abs(turn) > 0.02;
       item.view.tick.position.set(Math.cos(clamped) * radius, Math.sin(clamped) * radius, 0);
       item.view.tick.rotation.z = clamped;
@@ -158,7 +180,7 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
     item.view.group.visible = true;
     item.view.tick.visible = false;
     item.view.originTick.visible = false;
-    layoutArc(item.view, PITCH_RADIUS_PX * wpp, 0, Math.PI, wpp);
+    layoutArc(item.view, PITCH_RADIUS_PX * wpp, 0, Math.PI, wpp, false);
   });
 }
 

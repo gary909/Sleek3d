@@ -1622,18 +1622,24 @@ function showRotationReadout(box) {
   const radians = drag && drag.isPitch ? drag.delta || 0 : selectionTurn();
   const degrees = Math.round(THREE.MathUtils.radToDeg(radians));
   const centre = box.getCenter(new THREE.Vector3());
-  const top = new THREE.Vector3(centre.x, box.max.y + 70 * pixelsToWorld(centre), centre.z);
+  // Bottom of the object, on the side facing the viewer, just past the red tick.
+  const outward = camera.getWorldDirection(new THREE.Vector3());
+  outward.y = 0;
+  if (outward.lengthSq() < 1e-6) outward.set(0, 0, 1);
+  outward.normalize().negate();
+  const reach = Math.abs(outward.x) * ((box.max.x - box.min.x) / 2) + Math.abs(outward.z) * ((box.max.z - box.min.z) / 2);
+  const base = new THREE.Vector3(centre.x, box.min.y, centre.z).addScaledVector(outward, reach + 60 * pixelsToWorld(centre));
+  const along = new THREE.Vector3(-outward.z, 0, outward.x).multiplyScalar(0.4);
   showRotationChip(resizeFrame, {
     camera,
     viewportWidth: renderer.domElement.clientWidth,
     viewportHeight: renderer.domElement.clientHeight,
     centre,
     text: (degrees > 0 ? "+" : "") + degrees + "\u00b0",
-    from: top,
-    to: new THREE.Vector3(top.x + 0.4, top.y, top.z),
+    from: base.clone().sub(along),
+    to: base.clone().add(along),
   });
 }
-
 function restoreRotateStates(states) {
   restoreRotations(states);
   syncGizmo();
