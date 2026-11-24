@@ -20,7 +20,7 @@ import {
 } from './scene.js';
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
-import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures } from './resizeFrame.js';
+import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures, showRotationChip, hideRotationChip } from './resizeFrame.js';
 import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale, EDGE_HANDLES, edgeTarget } from './selectionResize.js';
 import { createRotationHandles, updateRotationHandles, pickRotationHandle, setHoveredRotationHandle } from './rotationHandles.js';
 import { yawAngle, snapAngle, applyRotation, restoreRotations } from './selectionRotate.js';
@@ -1441,8 +1441,6 @@ const FRAME_MIN_SIZE = 1;
 const RULER_OUTSET_PX = 16; // corner dimension lines sit this far outside the outline
 let frameDrag = null;
 let activeHandle = null;
-let readoutUntil = 0;
-let readoutTimer = null;
 
 function selectionFrameVisible() {
   return state.selected.length > 0 && lockedSelection() === false;
@@ -1484,6 +1482,7 @@ function showHandleRuler(id, box) {
     showRotationReadout(box);
     return;
   }
+  hideRotationChip(resizeFrame);
   const y = box.min.y + 0.02;
   const fmt = (v) => formatLength(v, settings) + getUnit(settings);
   const centre = box.getCenter(new THREE.Vector3());
@@ -1614,29 +1613,22 @@ function pixelsToWorld(point) {
   return (2 * camera.position.distanceTo(point) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / vh;
 }
 
-// Live readout of how far the selection has turned from its original angle.
+// Live angle: the tilt delta while tilting, otherwise how far the object has
+// turned from its original orientation. Drawn in its own chip.
 function showRotationReadout(box) {
-  const degrees = Math.round(THREE.MathUtils.radToDeg(selectionTurn()));
+  const drag = frameDrag && frameDrag.rotate ? frameDrag.rotate : null;
+  const radians = drag && drag.isPitch ? drag.delta || 0 : selectionTurn();
+  const degrees = Math.round(THREE.MathUtils.radToDeg(radians));
   const centre = box.getCenter(new THREE.Vector3());
   const top = new THREE.Vector3(centre.x, box.max.y + 70 * pixelsToWorld(centre), centre.z);
-  readoutUntil = Date.now() + 1200;
-  if (readoutTimer) clearTimeout(readoutTimer);
-  readoutTimer = setTimeout(() => {
-    if (frameDrag === null && activeHandle === null) hideResizeMeasures(resizeFrame);
-  }, 1200);
-  showResizeMeasures(resizeFrame, {
+  showRotationChip(resizeFrame, {
     camera,
     viewportWidth: renderer.domElement.clientWidth,
     viewportHeight: renderer.domElement.clientHeight,
     centre,
-    measures: [
-      {
-        text: (degrees > 0 ? "+" : "") + degrees + "\u00b0",
-        from: top,
-        to: new THREE.Vector3(top.x + 0.4, top.y, top.z),
-        level: true,
-      },
-    ],
+    text: (degrees > 0 ? "+" : "") + degrees + "\u00b0",
+    from: top,
+    to: new THREE.Vector3(top.x + 0.4, top.y, top.z),
   });
 }
 
@@ -1770,7 +1762,7 @@ function frameDragEnd() {
     const turned = rotateSnapshots.some((before, i) => before.position.equals(after[i].position) === false || before.quaternion.equals(after[i].quaternion) === false);
     showRotationReadout(frameDrag.box);
     frameDrag = null;
-    if (Date.now() > readoutUntil) hideResizeMeasures(resizeFrame);
+    if (activeHandle === null) hideResizeMeasures(resizeFrame);
     syncGizmo();
     if (turned) {
       history.push({ undo: () => restoreRotateStates(rotateSnapshots), redo: () => restoreRotateStates(after) });

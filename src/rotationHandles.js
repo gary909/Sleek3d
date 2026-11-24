@@ -1,11 +1,12 @@
 import * as THREE from "three";
 
 const ARC_SPAN = Math.PI * (2 / 3); // 120 degrees of tick travel
-const ARC_RADIUS_PX = 36; // gap between a mid-edge handle and its arc
+const ARC_RADIUS_PX = 48; // gap between a mid-edge handle and its arc
 const ARC_THICK_PX = 1.2;
 const HEAD_PX = 7; // arrowhead length, screen pixels
 const HEAD_RADIUS_PX = 2.8;
-const PITCH_GAP_PX = 34;
+const GRAB_PX = 30; // invisible grab target size around each arc
+const PITCH_GAP_PX = 40;
 const PITCH_RADIUS_PX = 34; // the pitch arrow faces the camera above the box
 const BASE_COLOR = 0xffffff;
 const HOVER_COLOR = 0x4a90d9;
@@ -55,7 +56,11 @@ function makeArc() {
   originTick.renderOrder = 994;
   originTick.visible = false;
   group.add(originTick);
-  return { group, arc, head, tick, originTick, material };
+  // Invisible camera-facing grab target: sprites are always easy to pick.
+  const grab = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+  grab.renderOrder = 993;
+  group.add(grab);
+  return { group, arc, head, tick, originTick, grab, material };
 }
 
 // Span the arc from spanStart to spanStart + ARC_SPAN and put the head on its tip.
@@ -65,6 +70,9 @@ function layoutArc(view, radiusWorld, spanStart, span, wpp) {
   // Tube ratio is taken from the real radius so the arc stays ARC_THICK_PX thick.
   view.arc.geometry = new THREE.TorusGeometry(1, ARC_THICK_PX / (radiusWorld / wpp), 5, 26, span);
   view.arc.scale.setScalar(radiusWorld);
+  const aMid = spanStart + span / 2;
+  view.grab.position.set(Math.cos(aMid) * radiusWorld, Math.sin(aMid) * radiusWorld, 0);
+  view.grab.scale.set(GRAB_PX * wpp, GRAB_PX * wpp, 1);
   const a = spanStart + span;
   const cos = Math.cos(a);
   const sin = Math.sin(a);
@@ -89,6 +97,7 @@ export function createRotationHandles() {
     view.group.userData.handle = "rotY";
     view.arc.userData.handle = "rotY";
     view.head.userData.handle = "rotY";
+    view.grab.userData.handle = "rotY";
     flat.add(view.group);
     pivot.add(flat);
     group.add(pivot);
@@ -100,6 +109,7 @@ export function createRotationHandles() {
   pitchView.group.userData.handle = "rotX";
   pitchView.arc.userData.handle = "rotX";
   pitchView.head.userData.handle = "rotX";
+  pitchView.grab.userData.handle = "rotX";
   pitchPivot.add(pitchView.group);
   group.add(pitchPivot);
   items.push({ id: "rotX", pivot: pitchPivot, view: pitchView, material: pitchView.material });

@@ -118,7 +118,8 @@ export function createResizeFrame() {
 
   const ruler = new THREE.Group();
   ruler.visible = false;
-  const measures = [createMeasure(), createMeasure()];
+  // Two slots for the width/depth/height chips, one for the rotation readout.
+  const measures = [createMeasure(), createMeasure(), createMeasure()];
   measures.forEach((measure) => ruler.add(measure.group));
   group.add(ruler);
 
@@ -324,6 +325,7 @@ function layoutMeasure(measure, spec, camera, viewportWidth, viewportHeight, cen
 export function showResizeMeasures(frame, { measures, camera, viewportWidth, viewportHeight, centre }) {
   frame.ruler.visible = true;
   frame.measures.forEach((measure, i) => {
+    if (i > 1) return; // the rotation readout owns the third chip
     const spec = measures[i];
     measure.group.visible = Boolean(spec);
     if (spec) layoutMeasure(measure, spec, camera, viewportWidth, viewportHeight, centre);
@@ -332,4 +334,17 @@ export function showResizeMeasures(frame, { measures, camera, viewportWidth, vie
 
 export function hideResizeMeasures(frame) {
   frame.ruler.visible = false;
+}
+
+// The rotation readout lives in its own chip so it can never be mistaken for a
+// width/depth/height label, and it disappears the moment its handle is left.
+export function showRotationChip(frame, spec) {
+  frame.ruler.visible = true;
+  const measure = frame.measures[2];
+  measure.group.visible = true;
+  layoutMeasure(measure, { ...spec, level: true }, spec.camera, spec.viewportWidth, spec.viewportHeight, spec.centre);
+}
+
+export function hideRotationChip(frame) {
+  frame.measures[2].group.visible = false;
 }
