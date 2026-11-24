@@ -1,10 +1,12 @@
 import * as THREE from "three";
 
 const ARC_SPAN = Math.PI * (2 / 3); // 120 degrees of tick travel
+const ARC_SPAN_COLLAPSED = Math.PI / 4; // narrow hook until pressed
 const ARC_RADIUS_PX = 48; // gap between a mid-edge handle and its arc
 const ARC_THICK_PX = 1.2;
 const HEAD_PX = 7; // arrowhead length, screen pixels
 const HEAD_RADIUS_PX = 2.8;
+const HEAD_PX_COLLAPSED = 5; // compact head until the arrow is pressed
 const GRAB_PX = 30; // invisible grab target size around each arc
 const MARK_STEP = Math.PI / 12; // 15 degrees between protractor marks
 const MARK_COUNT = 13; // enough for a 180 degree arc
@@ -77,7 +79,7 @@ function makeArc() {
 }
 
 // Span the arc from spanStart to spanStart + ARC_SPAN and put the head on its tip.
-function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true) {
+function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true, headPx = HEAD_PX) {
   view.arc.rotation.z = spanStart;
   view.arc.geometry.dispose();
   // Tube ratio is taken from the real radius so the arc stays ARC_THICK_PX thick.
@@ -98,8 +100,8 @@ function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true) {
   const a = spanStart + span;
   const cos = Math.cos(a);
   const sin = Math.sin(a);
-  const headLen = HEAD_PX * wpp;
-  const headRad = HEAD_RADIUS_PX * wpp;
+  const headLen = headPx * wpp;
+  const headRad = headPx * (HEAD_RADIUS_PX / HEAD_PX) * wpp;
   view.head.position.set(cos * radiusWorld - sin * headLen * 0.5, sin * radiusWorld + cos * headLen * 0.5, 0);
   view.head.scale.set(headRad, headLen, headRad);
   view.head.quaternion.setFromUnitVectors(UP, new THREE.Vector3(-sin, cos, 0));
@@ -139,7 +141,7 @@ export function createRotationHandles() {
   return { group, items };
 }
 
-export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0 }) {
+export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0, expanded = false }) {
   const show = visible === true && box && box.isEmpty() === false && viewportHeight > 0;
   handles.group.visible = show;
   if (show === false) return;
@@ -155,19 +157,20 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
     if (item.key) {
       const reach = item.key === "e" || item.key === "w" ? width / 2 : depth / 2;
       const radius = reach + ARC_RADIUS_PX * wpp;
+      const span = expanded ? ARC_SPAN : ARC_SPAN_COLLAPSED;
       item.pivot.position.set(centre.x, y, centre.z);
       item.pivot.rotation.set(0, item.angle, 0);
       item.view.group.visible = true;
-      layoutArc(item.view, radius, -ARC_SPAN / 2, ARC_SPAN, wpp);
+      layoutArc(item.view, radius, -span / 2, span, wpp, expanded, expanded ? HEAD_PX : HEAD_PX_COLLAPSED);
       // White tick: the current angle. Red tick: where the object started.
       const clamped = Math.max(-ARC_SPAN / 2, Math.min(ARC_SPAN / 2, turn));
       const tickWidth = 12 * wpp;
       const tickBreadth = 2.6 * wpp;
-      item.view.tick.visible = Math.abs(turn) > 0.02;
+      item.view.tick.visible = expanded && Math.abs(turn) > 0.02;
       item.view.tick.position.set(Math.cos(clamped) * radius, Math.sin(clamped) * radius, 0);
       item.view.tick.rotation.z = clamped;
       item.view.tick.scale.set(tickWidth, tickBreadth, 1);
-      item.view.originTick.visible = true;
+      item.view.originTick.visible = expanded;
       item.view.originTick.position.set(radius, 0, 0);
       item.view.originTick.scale.set(tickWidth, tickBreadth, 1);
       return;

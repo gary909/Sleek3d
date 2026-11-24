@@ -1441,6 +1441,7 @@ const FRAME_MIN_SIZE = 1;
 const RULER_OUTSET_PX = 16; // corner dimension lines sit this far outside the outline
 let frameDrag = null;
 let activeHandle = null;
+let rotationExpanded = false; // arrows grow while a rotation drag is active
 
 function selectionFrameVisible() {
   return state.selected.length > 0 && lockedSelection() === false;
@@ -1472,6 +1473,7 @@ function updateFrameFromSelection() {
     viewportHeight: renderer.domElement.clientHeight,
     visible: selectionFrameVisible(),
     turn: selectionTurn(),
+    expanded: rotationExpanded,
   });
   if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
   // Always keep the angle chip live while a rotation drag is running.
@@ -1664,6 +1666,7 @@ function frameDragStart(id, raycaster, event) {
     })),
   };
   if (isRotateHandle(id)) {
+    rotationExpanded = true;
     const centre = box.getCenter(new THREE.Vector3());
     const axis = id === "rotY" ? new THREE.Vector3(0, 1, 0) : pitchAxis();
     const point = raycaster && id === "rotY" ? rotationPoint(raycaster, centre, axis) : null;
@@ -1759,6 +1762,7 @@ function restoreFrameStates(states) {
 function frameDragEnd() {
   if (frameDrag === null) return;
   if (frameDrag.rotate) {
+    rotationExpanded = false;
     const { snapshots: rotateSnapshots, isPitch, delta } = frameDrag.rotate;
     if (isPitch === false && delta) {
       rotateSnapshots.forEach(({ object }) => {
