@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-const ARC_SPAN = Math.PI * (2 / 3); // 120 degrees of tick travel
+const ARC_SPAN = Math.PI * 2; // full ring while a rotation drag is active
 const ARC_SPAN_COLLAPSED = Math.PI / 4; // narrow hook until pressed
 const ARC_RADIUS_PX = 48; // gap between a mid-edge handle and its arc
 const ARC_THICK_PX = 1.2;
@@ -9,7 +9,7 @@ const HEAD_RADIUS_PX = 2.8;
 const HEAD_PX_COLLAPSED = 5; // compact head until the arrow is pressed
 const GRAB_PX = 30; // invisible grab target size around each arc
 const MARK_STEP = Math.PI / 12; // 15 degrees between protractor marks
-const MARK_COUNT = 13; // enough for a 180 degree arc
+const MARK_COUNT = 25; // one mark per 15 degrees around a full ring
 const MARK_PX = 7; // protractor mark length
 const MARK_BREADTH_PX = 1.6;
 const PITCH_GAP_PX = 40;
@@ -105,6 +105,7 @@ function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true, he
   view.head.position.set(cos * radiusWorld - sin * headLen * 0.5, sin * radiusWorld + cos * headLen * 0.5, 0);
   view.head.scale.set(headRad, headLen, headRad);
   view.head.quaternion.setFromUnitVectors(UP, new THREE.Vector3(-sin, cos, 0));
+  view.head.visible = span < Math.PI * 1.95; // a closed ring needs no arrowhead
 }
 
 export function createRotationHandles() {
