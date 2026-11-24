@@ -1,0 +1,168 @@
+import * as THREE from "three";
+
+const ARC_SPAN = Math.PI * (2 / 3); // 120 degrees of tick travel
+const ARC_RADIUS_PX = 36; // gap between a mid-edge handle and its arc
+const ARC_THICK_PX = 1.2;
+const HEAD_PX = 7; // arrowhead length, screen pixels
+const HEAD_RADIUS_PX = 2.8;
+const PITCH_GAP_PX = 34;
+const PITCH_RADIUS_PX = 34; // the pitch arrow faces the camera above the box
+const BASE_COLOR = 0xffffff;
+const HOVER_COLOR = 0x4a90d9;
+const ORIGIN_COLOR = 0xe05555; // red tick marking the original orientation
+const UP = new THREE.Vector3(0, 1, 0);
+const FORWARD = new THREE.Vector3(0, 0, 1);
+
+// Where the four horizontal (yaw) arrows sit around the footprint.
+const YAW_KEYS = [
+  { key: "s", angle: -Math.PI / 2 },
+  { key: "n", angle: Math.PI / 2 },
+];
+
+function worldPerPixel(camera, distance, viewportHeight) {
+  if (camera.isOrthographicCamera) {
+    return ((camera.top - camera.bottom) / camera.zoom) / viewportHeight;
+  }
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  return (2 * distance * Math.tan(fov / 2)) / viewportHeight;
+}
+
+function cameraRight(camera) {
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  right.y = 0;
+  if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+  return right.normalize();
+}
+
+// One curved arrow: a thin torus arc plus a cone head, both flat in local XY.
+function makeArc() {
+  const material = new THREE.MeshBasicMaterial({ color: BASE_COLOR, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
+  const group = new THREE.Group();
+  group.visible = false;
+  const arc = new THREE.Mesh(new THREE.TorusGeometry(1, ARC_THICK_PX / ARC_RADIUS_PX, 5, 22, ARC_SPAN), material);
+  arc.renderOrder = 993;
+  group.add(arc);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 8), material);
+  head.renderOrder = 993;
+  group.add(head);
+  const tickMaterial = new THREE.MeshBasicMaterial({ color: BASE_COLOR, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+  const tick = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), tickMaterial);
+  tick.renderOrder = 994;
+  tick.visible = false;
+  group.add(tick);
+  const originMaterial = new THREE.MeshBasicMaterial({ color: ORIGIN_COLOR, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+  const originTick = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), originMaterial);
+  originTick.renderOrder = 994;
+  originTick.visible = false;
+  group.add(originTick);
+  return { group, arc, head, tick, originTick, material };
+}
+
+// Span the arc from spanStart to spanStart + ARC_SPAN and put the head on its tip.
+function layoutArc(view, radiusWorld, spanStart, span, wpp) {
+  view.arc.rotation.z = spanStart;
+  view.arc.geometry.dispose();
+  // Tube ratio is taken from the real radius so the arc stays ARC_THICK_PX thick.
+  view.arc.geometry = new THREE.TorusGeometry(1, ARC_THICK_PX / (radiusWorld / wpp), 5, 26, span);
+  view.arc.scale.setScalar(radiusWorld);
+  const a = spanStart + span;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  const headLen = HEAD_PX * wpp;
+  const headRad = HEAD_RADIUS_PX * wpp;
+  view.head.position.set(cos * radiusWorld - sin * headLen * 0.5, sin * radiusWorld + cos * headLen * 0.5, 0);
+  view.head.scale.set(headRad, headLen, headRad);
+  view.head.quaternion.setFromUnitVectors(UP, new THREE.Vector3(-sin, cos, 0));
+}
+
+export function createRotationHandles() {
+  const group = new THREE.Group();
+  group.name = "rotation-handles";
+  group.visible = false;
+  const items = [];
+
+  YAW_KEYS.forEach(({ key, angle }) => {
+    const pivot = new THREE.Group();
+    const flat = new THREE.Group();
+    flat.rotation.x = -Math.PI / 2; // lay the arc down in the work plane
+    const view = makeArc();
+    view.group.userData.handle = "rotY";
+    view.arc.userData.handle = "rotY";
+    view.head.userData.handle = "rotY";
+    flat.add(view.group);
+    pivot.add(flat);
+    group.add(pivot);
+    items.push({ id: "rotY", key, angle, pivot, view, material: view.material });
+  });
+
+  const pitchPivot = new THREE.Group();
+  const pitchView = makeArc();
+  pitchView.group.userData.handle = "rotX";
+  pitchView.arc.userData.handle = "rotX";
+  pitchView.head.userData.handle = "rotX";
+  pitchPivot.add(pitchView.group);
+  group.add(pitchPivot);
+  items.push({ id: "rotX", pivot: pitchPivot, view: pitchView, material: pitchView.material });
+
+  return { group, items };
+}
+
+export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0 }) {
+  const show = visible === true && box && box.isEmpty() === false && viewportHeight > 0;
+  handles.group.visible = show;
+  if (show === false) return;
+
+  const centre = box.getCenter(new THREE.Vector3());
+  const width = box.max.x - box.min.x;
+  const depth = box.max.z - box.min.z;
+  const height = box.max.y - box.min.y;
+  const y = box.min.y + 0.03;
+  const wpp = worldPerPixel(camera, camera.position.distanceTo(centre), viewportHeight);
+
+  handles.items.forEach((item) => {
+    if (item.key) {
+      const reach = item.key === "e" || item.key === "w" ? width / 2 : depth / 2;
+      const radius = reach + ARC_RADIUS_PX * wpp;
+      item.pivot.position.set(centre.x, y, centre.z);
+      item.pivot.rotation.set(0, item.angle, 0);
+      item.view.group.visible = true;
+      layoutArc(item.view, radius, -ARC_SPAN / 2, ARC_SPAN, wpp);
+      // White tick: the current angle. Red tick: where the object started.
+      const clamped = Math.max(-ARC_SPAN / 2, Math.min(ARC_SPAN / 2, turn));
+      const tickWidth = 8 * wpp;
+      const tickBreadth = 2 * wpp;
+      item.view.tick.visible = Math.abs(turn) > 0.02;
+      item.view.tick.position.set(Math.cos(clamped) * radius, Math.sin(clamped) * radius, 0);
+      item.view.tick.rotation.z = clamped;
+      item.view.tick.scale.set(tickWidth, tickBreadth, 1);
+      item.view.originTick.visible = true;
+      item.view.originTick.position.set(radius, 0, 0);
+      item.view.originTick.scale.set(tickWidth, tickBreadth, 1);
+      return;
+    }
+    // The pitch arrow faces the camera and sits above the box, so it always reads
+    // as a curve: the tilt axis is horizontal and perpendicular to the view.
+    const forward = camera.getWorldDirection(new THREE.Vector3());
+    item.pivot.position.set(centre.x, box.max.y + PITCH_GAP_PX * wpp, centre.z);
+    item.pivot.quaternion.setFromUnitVectors(FORWARD, forward);
+    item.view.group.visible = true;
+    item.view.tick.visible = false;
+    item.view.originTick.visible = false;
+    layoutArc(item.view, PITCH_RADIUS_PX * wpp, 0, Math.PI, wpp);
+  });
+}
+
+export function pickRotationHandle(handles, raycaster) {
+  if (handles.group.visible === false) return null;
+  const targets = handles.items.map((item) => item.pivot);
+  const hits = raycaster.intersectObjects(targets, true);
+  if (hits.length === 0) return null;
+  let node = hits[0].object;
+  while (node && !node.userData.handle) node = node.parent;
+  return node ? node.userData.handle : null;
+}
+
+export function setHoveredRotationHandle(handles, id) {
+  handles.items.forEach((item) => item.material.color.setHex(item.id === id ? HOVER_COLOR : BASE_COLOR));
+}
+

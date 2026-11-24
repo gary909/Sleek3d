@@ -40,6 +40,7 @@ function objectToJSON(object) {
       shapeType: object.userData.shapeType ?? 'combined',
       params: object.userData.params ?? null,
       locked: object.userData.locked === true,
+      turnY: object.userData.turnY ?? 0,
       geometry: geometryToJSON(object.geometry),
     };
   }
@@ -82,6 +83,7 @@ function objectFromJSON(json) {
       shapeType: json.shapeType ?? 'combined',
       params: json.params ?? null,
       locked: json.locked === true,
+      turnY: json.turnY ?? 0,
     };
     return mesh;
   }

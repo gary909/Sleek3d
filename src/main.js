@@ -22,6 +22,8 @@ import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams 
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures } from './resizeFrame.js';
 import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale, EDGE_HANDLES, edgeTarget } from './selectionResize.js';
+import { createRotationHandles, updateRotationHandles, pickRotationHandle, setHoveredRotationHandle } from './rotationHandles.js';
+import { yawAngle, snapAngle, applyRotation, restoreRotations } from './selectionRotate.js';
 import { createInteraction } from './interaction.js';
 import { createUI, createSettingsPanel, initTooltips } from './ui.js';
 import { createHistory } from './history.js';
@@ -65,6 +67,11 @@ scene.add(measureSprite);
 // Tinkercad-style resize frame drawn around the current selection.
 const resizeFrame = createResizeFrame();
 scene.add(resizeFrame.group);
+
+// Tinkercad-style rotation arrows: four flat yaw arcs plus one pitch arc on top.
+const rotationHandles = createRotationHandles();
+scene.add(rotationHandles.group);
+
 
 // Text labels printed flat on the grid (scale with the grid, hide with it).
 const GRID_LABEL_W = 6; // base plane width (world units, before grid scaling)
@@ -488,7 +495,10 @@ const interaction = createInteraction({
   onCopy: copySelected,
   onPaste: pasteClipboard,
   onDrop: dropSelection,
-  pickFrameHandle: (raycaster) => (selectionFrameVisible() ? pickResizeHandle(resizeFrame, raycaster) : null),
+  pickFrameHandle: (raycaster) => {
+    if (selectionFrameVisible() === false) return null;
+    return pickResizeHandle(resizeFrame, raycaster) ?? pickRotationHandle(rotationHandles, raycaster);
+  },
   onFrameHover: frameHandleHover,
   onFrameDragStart: frameDragStart,
   onFrameDragMove: frameDragMove,
@@ -704,6 +714,7 @@ function onSetMode(mode) {
 
 // Rotation snapping: free by default, 15deg steps while Shift is held (rotate mode only).
 const ROTATION_SNAP_DEG = 15;
+const PITCH_DEG_PER_PX = 0.75; // vertical drag of the tilt arrow
 
 function updateRotationSnap() {
   const snapping = shiftHeld && transformControls.mode === 'rotate';
@@ -1430,24 +1441,49 @@ const FRAME_MIN_SIZE = 1;
 const RULER_OUTSET_PX = 16; // corner dimension lines sit this far outside the outline
 let frameDrag = null;
 let activeHandle = null;
+let readoutUntil = 0;
+let readoutTimer = null;
 
 function selectionFrameVisible() {
   return state.selected.length > 0 && lockedSelection() === false;
 }
 
+// How far the selection has turned from its original orientation (yaw only),
+// plus the in-progress drag so the tick follows the pointer live.
+function selectionTurn() {
+  const object = state.selected[0];
+  if (!object) return 0;
+  const base = object.userData.turnY || 0;
+  const drag = frameDrag && frameDrag.rotate && frameDrag.rotate.isPitch === false ? frameDrag.rotate.delta || 0 : 0;
+  return base + drag;
+}
+
 function updateFrameFromSelection() {
-  const box = state.selected.length ? unionBounds(state.selected) : null;
+  // Freeze the frame while a rotation drag runs: the world AABB grows as the
+  // selection turns, which would make the handles slide under the pointer.
+  const box = frameDrag && frameDrag.rotate ? frameDrag.box : state.selected.length ? unionBounds(state.selected) : null;
   updateResizeFrame(resizeFrame, {
     box,
     camera,
     viewportHeight: renderer.domElement.clientHeight,
     visible: selectionFrameVisible(),
   });
+  updateRotationHandles(rotationHandles, {
+    box,
+    camera,
+    viewportHeight: renderer.domElement.clientHeight,
+    visible: selectionFrameVisible(),
+    turn: selectionTurn(),
+  });
   if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
   if (selectionFrameVisible() === false) renderer.domElement.style.cursor = "";
 }
 
 function showHandleRuler(id, box) {
+  if (isRotateHandle(id)) {
+    showRotationReadout(box);
+    return;
+  }
   const y = box.min.y + 0.02;
   const fmt = (v) => formatLength(v, settings) + getUnit(settings);
   const centre = box.getCenter(new THREE.Vector3());
@@ -1520,8 +1556,15 @@ function showHandleRuler(id, box) {
 function frameHandleHover(id) {
   activeHandle = id;
   setHoveredResizeHandle(resizeFrame, id);
+  setHoveredRotationHandle(rotationHandles, id);
   if (id && selectionFrameVisible()) {
-    const cursor = id === "top" || id === "n" || id === "s" ? "ns-resize" : id === "e" || id === "w" ? "ew-resize" : "nwse-resize";
+    const cursor = isRotateHandle(id)
+      ? "grab"
+      : id === "top" || id === "n" || id === "s"
+        ? "ns-resize"
+        : id === "e" || id === "w"
+          ? "ew-resize"
+          : "nwse-resize";
     renderer.domElement.style.cursor = cursor;
     showHandleRuler(id, unionBounds(state.selected));
   } else {
@@ -1545,7 +1588,67 @@ function dragPointFor(raycaster, box, id) {
   return raycaster.ray.intersectPlane(plane, new THREE.Vector3());
 }
 
-function frameDragStart(id) {
+function isRotateHandle(id) {
+  return id === "rotY" || id === "rotX";
+}
+
+// Horizontal axis for the pitch arrow: the camera right vector, so the object
+// always tilts towards or away from the viewer.
+function pitchAxis() {
+  const axis = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  axis.y = 0;
+  if (axis.lengthSq() < 1e-6) axis.set(1, 0, 0);
+  return axis.normalize();
+}
+
+function rotationPoint(raycaster, centre, axis) {
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(axis, centre);
+  return raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+}
+
+// Live angle readout during a rotation drag, drawn with the same chip style.
+// World units per screen pixel at a world point (same maths the frame uses).
+function pixelsToWorld(point) {
+  const vh = renderer.domElement.clientHeight;
+  if (camera.isOrthographicCamera) return ((camera.top - camera.bottom) / camera.zoom) / vh;
+  return (2 * camera.position.distanceTo(point) * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / vh;
+}
+
+// Live readout of how far the selection has turned from its original angle.
+function showRotationReadout(box) {
+  const degrees = Math.round(THREE.MathUtils.radToDeg(selectionTurn()));
+  const centre = box.getCenter(new THREE.Vector3());
+  const top = new THREE.Vector3(centre.x, box.max.y + 70 * pixelsToWorld(centre), centre.z);
+  readoutUntil = Date.now() + 1200;
+  if (readoutTimer) clearTimeout(readoutTimer);
+  readoutTimer = setTimeout(() => {
+    if (frameDrag === null && activeHandle === null) hideResizeMeasures(resizeFrame);
+  }, 1200);
+  showResizeMeasures(resizeFrame, {
+    camera,
+    viewportWidth: renderer.domElement.clientWidth,
+    viewportHeight: renderer.domElement.clientHeight,
+    centre,
+    measures: [
+      {
+        text: (degrees > 0 ? "+" : "") + degrees + "\u00b0",
+        from: top,
+        to: new THREE.Vector3(top.x + 0.4, top.y, top.z),
+        level: true,
+      },
+    ],
+  });
+}
+
+function restoreRotateStates(states) {
+  restoreRotations(states);
+  syncGizmo();
+  ui.refresh();
+  updateMeasure();
+  scheduleSave();
+}
+
+function frameDragStart(id, raycaster, event) {
   if (selectionFrameVisible() === false) return;
   activeHandle = id;
   const box = unionBounds(state.selected);
@@ -1560,6 +1663,20 @@ function frameDragStart(id) {
       baseY: new THREE.Box3().setFromObject(object).min.y,
     })),
   };
+  if (isRotateHandle(id)) {
+    const centre = box.getCenter(new THREE.Vector3());
+    const axis = id === "rotY" ? new THREE.Vector3(0, 1, 0) : pitchAxis();
+    const point = raycaster && id === "rotY" ? rotationPoint(raycaster, centre, axis) : null;
+    frameDrag.rotate = {
+      centre,
+      axis,
+      isPitch: id === "rotX",
+      delta: 0,
+      startAngle: point ? yawAngle(centre, point) : 0,
+      startY: event ? event.clientY : 0,
+      snapshots: state.selected.map((object) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0 })),
+    };
+  }
   transformControls.detach();
   showHandleRuler(id, box);
 }
@@ -1575,8 +1692,27 @@ function snapBasesToPlane(snapshots) {
   });
 }
 
-function frameDragMove(raycaster) {
+function frameDragMove(raycaster, event) {
   if (frameDrag === null) return;
+  if (frameDrag.rotate) {
+    const { centre, axis, isPitch, startAngle, startY, snapshots: rotateSnapshots } = frameDrag.rotate;
+    let raw = 0;
+    if (isPitch) {
+      // Vertical drag tilts the selection: about PITCH_DEG_PER_PX degrees per pixel.
+      raw = (startY - (event ? event.clientY : startY)) * THREE.MathUtils.degToRad(PITCH_DEG_PER_PX);
+    } else {
+      const point = rotationPoint(raycaster, centre, axis);
+      if (!point) return;
+      raw = yawAngle(centre, point) - startAngle;
+    }
+    let delta = Math.atan2(Math.sin(raw), Math.cos(raw));
+    if (shiftHeld) delta = snapAngle(delta, THREE.MathUtils.degToRad(ROTATION_SNAP_DEG));
+    frameDrag.rotate.delta = delta;
+    applyRotation(rotateSnapshots, centre, axis, delta);
+    showRotationReadout(frameDrag.box);
+    updateMeasure();
+    return;
+  }
   const { box, id, snapshots } = frameDrag;
   const point = dragPointFor(raycaster, box, id);
   if (!point) return;
@@ -1622,6 +1758,29 @@ function restoreFrameStates(states) {
 
 function frameDragEnd() {
   if (frameDrag === null) return;
+  if (frameDrag.rotate) {
+    const { snapshots: rotateSnapshots, isPitch, delta } = frameDrag.rotate;
+    if (isPitch === false && delta) {
+      rotateSnapshots.forEach(({ object }) => {
+        const next = (object.userData.turnY || 0) + delta;
+        object.userData.turnY = Math.atan2(Math.sin(next), Math.cos(next));
+      });
+    }
+    const after = rotateSnapshots.map(({ object }) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0 }));
+    const turned = rotateSnapshots.some((before, i) => before.position.equals(after[i].position) === false || before.quaternion.equals(after[i].quaternion) === false);
+    showRotationReadout(frameDrag.box);
+    frameDrag = null;
+    if (Date.now() > readoutUntil) hideResizeMeasures(resizeFrame);
+    syncGizmo();
+    if (turned) {
+      history.push({ undo: () => restoreRotateStates(rotateSnapshots), redo: () => restoreRotateStates(after) });
+      updateHistoryUI();
+    }
+    ui.refresh();
+    updateMeasure();
+    scheduleSave();
+    return;
+  }
   const { snapshots } = frameDrag;
   snapshots.forEach(({ object, position }) => {
     const finalPosition = object.position.clone();

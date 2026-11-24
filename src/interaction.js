@@ -85,7 +85,7 @@ export function createInteraction({
   function onPointerMove(event) {
     if (frameDrag !== null) {
       updatePointer(event);
-      onFrameDragMove?.(raycaster);
+      onFrameDragMove?.(raycaster, event);
       return;
     }
     updatePointer(event);
@@ -141,7 +141,7 @@ export function createInteraction({
     frameDrag = handle;
     event.stopPropagation();
     event.preventDefault();
-    onFrameDragStart?.(handle, raycaster);
+    onFrameDragStart?.(handle, raycaster, event);
   }, true);
 
   // Selection happens on pointer *up*, and only if the pointer barely moved (a real
