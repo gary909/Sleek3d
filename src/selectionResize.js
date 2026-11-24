@@ -69,3 +69,31 @@ export function resetSnapshots(snapshots) {
     object.scale.copy(scale);
   });
 }
+
+export const EDGE_HANDLES = ["n", "e", "s", "w"];
+
+// Midpoints of the four footprint edges: the single-axis resize handles.
+export function edgePoints(box) {
+  const y = box.min.y;
+  const midX = (box.min.x + box.max.x) / 2;
+  const midZ = (box.min.z + box.max.z) / 2;
+  return {
+    n: new THREE.Vector3(midX, y, box.min.z),
+    s: new THREE.Vector3(midX, y, box.max.z),
+    w: new THREE.Vector3(box.min.x, y, midZ),
+    e: new THREE.Vector3(box.max.x, y, midZ),
+  };
+}
+
+// Dragging an edge handle changes one axis only and keeps the opposite side
+// fixed. The other axis is left alone by the caller (scale factor 1).
+export function edgeTarget(box, handle, point, snap = 0, min = 1) {
+  if (handle === "e" || handle === "w") {
+    const anchorX = handle === "e" ? box.min.x : box.max.x;
+    const width = Math.max(min, snapTo(handle === "e" ? point.x - anchorX : anchorX - point.x, snap));
+    return { width, anchorX };
+  }
+  const anchorZ = handle === "n" ? box.max.z : box.min.z;
+  const depth = Math.max(min, snapTo(handle === "n" ? anchorZ - point.z : point.z - anchorZ, snap));
+  return { depth, anchorZ };
+}

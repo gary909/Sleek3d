@@ -1,7 +1,8 @@
 import * as THREE from "three";
-import { CORNER_HANDLES } from "./selectionResize.js";
+import { CORNER_HANDLES, EDGE_HANDLES } from "./selectionResize.js";
 
 const HANDLE_PX = 11;
+const MID_HANDLE_PX = 8; // mid-edge handles are smaller than the corner squares
 const OUTLINE_PX = 1.5;
 const BASE_COLOR = 0xffffff;
 const HOVER_COLOR = 0x4a90d9;
@@ -9,6 +10,8 @@ const UP = new THREE.Vector3(0, 1, 0);
 const CHIP_H = 128; // chip canvas height in px; the width follows the text
 const CHIP_PX_H = 20; // chip box height in screen pixels, constant at any zoom
 const CHIP_GAP_PX = 7; // gap between a rod and its chip, in screen pixels
+const HEAD_PX = 10; // arrowhead length at each end of a dimension line
+const HEAD_RADIUS_PX = 4.5; // arrowhead half-width
 
 function makeHandleTexture() {
   const size = 64;
@@ -58,7 +61,16 @@ function createMeasure() {
   chip.renderOrder = 996;
   group.add(chip);
 
-  return { group, rod, chip, canvas, ctx, texture, aspect: canvas.width / canvas.height, text: "" };
+  const headGeometry = new THREE.ConeGeometry(1, 1, 10);
+  const headMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
+  const heads = [0, 1].map(() => {
+    const head = new THREE.Mesh(headGeometry, headMaterial);
+    head.renderOrder = 991;
+    group.add(head);
+    return head;
+  });
+
+  return { group, rod, chip, heads, canvas, ctx, texture, aspect: canvas.width / canvas.height, text: "" };
 }
 
 export function createResizeFrame() {
@@ -84,6 +96,17 @@ export function createResizeFrame() {
     handle.rotation.x = -Math.PI / 2;
     handle.renderOrder = 990;
     handle.userData.handle = id;
+    group.add(handle);
+    handles.set(id, handle);
+  });
+
+  EDGE_HANDLES.forEach((id) => {
+    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, side: THREE.DoubleSide });
+    const handle = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+    handle.rotation.x = -Math.PI / 2;
+    handle.renderOrder = 992;
+    handle.userData.handle = id;
+    handle.userData.edge = true;
     group.add(handle);
     handles.set(id, handle);
   });
@@ -137,10 +160,17 @@ export function updateResizeFrame(frame, { box, camera, viewportHeight, visible 
     sw: [box.min.x, box.max.z],
     se: [box.max.x, box.max.z],
   };
+  const mids = {
+    n: [midX, box.min.z],
+    s: [midX, box.max.z],
+    w: [box.min.x, midZ],
+    e: [box.max.x, midZ],
+  };
   frame.handles.forEach((mesh, id) => {
-    const pos = corners[id];
-    const size = HANDLE_PX * pxAt(pos[0], y, pos[1]);
-    mesh.position.set(pos[0], y + 0.01, pos[1]);
+    const isEdge = mesh.userData.edge === true;
+    const pos = isEdge ? mids[id] : corners[id];
+    const size = (isEdge ? MID_HANDLE_PX : HANDLE_PX) * pxAt(pos[0], y, pos[1]);
+    mesh.position.set(pos[0], y + (isEdge ? 0.02 : 0.01), pos[1]);
     mesh.scale.set(size, size, 1);
     mesh.userData.size = size;
   });
@@ -235,15 +265,45 @@ function chipDirection(camera, from, to, mid, centre, viewportWidth, viewportHei
 }
 
 function layoutMeasure(measure, spec, camera, viewportWidth, viewportHeight, centre) {
-  const { from, to, text, gapAxis, level } = spec;
-  const mid = from.clone().add(to).multiplyScalar(0.5);
+  const { text, gapAxis, level, outsetPx } = spec;
+  const from = spec.from.clone();
+  const to = spec.to.clone();
   const dir = new THREE.Vector3().subVectors(to, from);
   const len = dir.length();
-  const wpp = worldPerPixel(camera, camera.position.distanceTo(mid), viewportHeight);
+  const startMid = from.clone().add(to).multiplyScalar(0.5);
+  const wpp = worldPerPixel(camera, camera.position.distanceTo(startMid), viewportHeight);
+  if (outsetPx && len > 1e-5) {
+    // Slide the whole line sideways in the work plane, away from the shape, so
+    // it clears the frame outline while staying parallel to the edge it measures.
+    const perp = new THREE.Vector3(-dir.z, 0, dir.x);
+    if (perp.lengthSq() > 1e-9) {
+      perp.normalize();
+      if (perp.dot(startMid.clone().sub(centre)) < 0) perp.negate();
+      const push = perp.multiplyScalar(outsetPx * wpp);
+      from.add(push);
+      to.add(push);
+    }
+  }
+  const mid = from.clone().add(to).multiplyScalar(0.5);
   const radius = Math.max(0.6 * wpp, 1e-5); // ~1.2 px thick at any zoom
   measure.rod.position.copy(mid);
   measure.rod.scale.set(radius, Math.max(len, 1e-4), radius);
   if (len > 1e-5) measure.rod.quaternion.setFromUnitVectors(UP, dir.clone().normalize());
+  // Arrowheads at both ends of the line, sized in screen pixels like the rod.
+  const headLen = HEAD_PX * wpp;
+  const headRadius = HEAD_RADIUS_PX * wpp;
+  const showHeads = len > 1e-5 && len / wpp > headLen * 2.5;
+  measure.heads.forEach((head, i) => {
+    head.visible = showHeads;
+    if (showHeads === false) return;
+    const outward = dir.clone().normalize();
+    if (i === 0) outward.negate();
+    const tip = i === 0 ? from : to;
+    head.scale.set(headRadius, headLen, headRadius);
+    head.position.copy(tip).addScaledVector(outward, -headLen / 2);
+    head.quaternion.setFromUnitVectors(UP, outward);
+  });
+
   drawChip(measure, text);
   const h = CHIP_PX_H * wpp;
   const w = h * measure.aspect;

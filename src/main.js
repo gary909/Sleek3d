@@ -21,7 +21,7 @@ import {
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures } from './resizeFrame.js';
-import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale } from './selectionResize.js';
+import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale, EDGE_HANDLES, edgeTarget } from './selectionResize.js';
 import { createInteraction } from './interaction.js';
 import { createUI, createSettingsPanel, initTooltips } from './ui.js';
 import { createHistory } from './history.js';
@@ -1427,6 +1427,7 @@ function updateMeasure() {
 // ---- resize frame -----------------------------------------------------------
 
 const FRAME_MIN_SIZE = 1;
+const RULER_OUTSET_PX = 16; // corner dimension lines sit this far outside the outline
 let frameDrag = null;
 let activeHandle = null;
 
@@ -1470,6 +1471,27 @@ function showHandleRuler(id, box) {
     });
     return;
   }
+  if (EDGE_HANDLES.includes(id)) {
+    // Single-axis handle: show only the dimension being changed, measured along
+    // that axis through the middle of the footprint.
+    const midX = (box.min.x + box.max.x) / 2;
+    const midZ = (box.min.z + box.max.z) / 2;
+    const isWidth = id === "e" || id === "w";
+    const spec = isWidth
+      ? {
+          text: fmt(box.max.x - box.min.x),
+          from: new THREE.Vector3(box.min.x, y, midZ),
+          to: new THREE.Vector3(box.max.x, y, midZ),
+        }
+      : {
+          text: fmt(box.max.z - box.min.z),
+          from: new THREE.Vector3(midX, y, box.min.z),
+          to: new THREE.Vector3(midX, y, box.max.z),
+          level: true,
+        };
+    showResizeMeasures(resizeFrame, { ...view, measures: [spec] });
+    return;
+  }
   const point = cornerPoints(box)[id];
   if (!point) return;
   const oppositeX = id === "nw" || id === "sw" ? box.max.x : box.min.x;
@@ -1482,12 +1504,14 @@ function showHandleRuler(id, box) {
         text: fmt(box.max.x - box.min.x),
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(oppositeX, y, point.z),
+        outsetPx: RULER_OUTSET_PX,
       },
       {
         text: fmt(box.max.z - box.min.z),
         from: new THREE.Vector3(point.x, y, point.z),
         to: new THREE.Vector3(point.x, y, oppositeZ),
         level: true,
+        outsetPx: RULER_OUTSET_PX,
       },
     ],
   });
@@ -1497,7 +1521,8 @@ function frameHandleHover(id) {
   activeHandle = id;
   setHoveredResizeHandle(resizeFrame, id);
   if (id && selectionFrameVisible()) {
-    renderer.domElement.style.cursor = id === "top" ? "ns-resize" : "nwse-resize";
+    const cursor = id === "top" || id === "n" || id === "s" ? "ns-resize" : id === "e" || id === "w" ? "ew-resize" : "nwse-resize";
+    renderer.domElement.style.cursor = cursor;
     showHandleRuler(id, unionBounds(state.selected));
   } else {
     renderer.domElement.style.cursor = "";
@@ -1559,6 +1584,16 @@ function frameDragMove(raycaster) {
     const target = heightTarget(box, point.y, state.snap, FRAME_MIN_SIZE);
     const sy = Math.max(0.001, target.height / Math.max(1e-4, box.max.y - box.min.y));
     applyHeightScale(snapshots, target.baseY, sy);
+  } else if (EDGE_HANDLES.includes(id)) {
+    const target = edgeTarget(box, id, point, state.snap, FRAME_MIN_SIZE);
+    if (id === "e" || id === "w") {
+      const sx = Math.max(0.001, target.width / Math.max(1e-4, box.max.x - box.min.x));
+      applyCornerScale(snapshots, new THREE.Vector3(target.anchorX, box.min.y, 0), sx, 1);
+    } else {
+      const sz = Math.max(0.001, target.depth / Math.max(1e-4, box.max.z - box.min.z));
+      applyCornerScale(snapshots, new THREE.Vector3(0, box.min.y, target.anchorZ), 1, sz);
+    }
+    snapBasesToPlane(snapshots);
   } else {
     const target = cornerTarget(box, id, point, state.snap, FRAME_MIN_SIZE);
     const sx = Math.max(0.001, target.width / Math.max(1e-4, box.max.x - box.min.x));
