@@ -215,15 +215,13 @@ function drawChip(measure, text) {
   const fontFor = (px) => "bold " + px + "px ui-monospace, Menlo, Consolas, monospace";
   let px = 64;
   ctx.font = fontFor(px);
-  let textWidth = ctx.measureText(text).width;
-  while (textWidth > 460 && px > 20) {
+  const w = measure.canvas.width;
+  // Never resize the canvas: that reallocates the texture mid-drag, which froze
+  // the rotation readout. Shrink the font to fit instead.
+  while (ctx.measureText(text).width > w - 56 && px > 18) {
     px -= 4;
     ctx.font = fontFor(px);
-    textWidth = ctx.measureText(text).width;
   }
-  const w = Math.max(132, Math.ceil(textWidth + 88));
-  if (measure.canvas.width !== w) measure.canvas.width = w;
-  ctx.font = fontFor(px);
   ctx.clearRect(0, 0, w, CHIP_H);
   ctx.fillStyle = "rgba(20, 24, 28, 0.9)";
   roundRect(ctx, 4, 4, w - 8, CHIP_H - 8, 30);

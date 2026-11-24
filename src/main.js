@@ -1474,6 +1474,8 @@ function updateFrameFromSelection() {
     turn: selectionTurn(),
   });
   if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
+  // Always keep the angle chip live while a rotation drag is running.
+  if (frameDrag && frameDrag.rotate) showRotationReadout(frameDrag.box);
   if (selectionFrameVisible() === false) renderer.domElement.style.cursor = "";
 }
 
@@ -1482,7 +1484,7 @@ function showHandleRuler(id, box) {
     showRotationReadout(box);
     return;
   }
-  hideRotationChip(resizeFrame);
+  if (!(frameDrag && frameDrag.rotate)) hideRotationChip(resizeFrame);
   const y = box.min.y + 0.02;
   const fmt = (v) => formatLength(v, settings) + getUnit(settings);
   const centre = box.getCenter(new THREE.Vector3());

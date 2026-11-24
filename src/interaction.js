@@ -83,11 +83,7 @@ export function createInteraction({
   }
 
   function onPointerMove(event) {
-    if (frameDrag !== null) {
-      updatePointer(event);
-      onFrameDragMove?.(raycaster, event);
-      return;
-    }
+    if (frameDrag !== null) return; // frame drags are tracked on the window
     updatePointer(event);
     const handle = pickFrameHandle ? pickFrameHandle(raycaster) : null;
     if (handle !== hoveredHandle) {
@@ -240,6 +236,13 @@ export function createInteraction({
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
   renderer.domElement.addEventListener('pointermove', onPointerMove);
+  // A frame drag keeps following the pointer even outside the canvas, so the
+  // object keeps rotating instead of stopping at the canvas edge.
+  window.addEventListener('pointermove', (event) => {
+    if (frameDrag === null) return;
+    updatePointer(event);
+    onFrameDragMove?.(raycaster, event);
+  });
   renderer.domElement.addEventListener('pointerleave', () => {
     if (frameDrag !== null) return;
     if (hovered !== null) {
