@@ -340,6 +340,10 @@ section:first-child {
   margin: 4px 0 8px;
 }
 
+#align[hidden] {
+  display: none;
+}
+
 .align-row {
   display: flex;
   align-items: center;

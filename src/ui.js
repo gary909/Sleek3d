@@ -55,6 +55,7 @@ export function createUI({
   const newBtn = document.getElementById('new');
   const dimContainer = document.getElementById('dimensions');
   const alignBtns = Array.from(document.querySelectorAll('#align [data-align]'));
+  const alignSection = document.getElementById('align');
   const copyBtn = document.getElementById('copy');
   const pasteBtn = document.getElementById('paste');
   const transformSection = document.getElementById('transform-values');
@@ -363,6 +364,8 @@ export function createUI({
     duplicateBtn.disabled = !hasSelection;
     groupBtn.disabled = sel.length < 2;
     ungroupBtn.disabled = !sel.some((o) => o.isGroup);
+    // Align needs two or more shapes, so it only shows up once there are.
+    if (alignSection) alignSection.hidden = sel.length < 2;
     alignBtns.forEach((b) => { b.disabled = sel.length < 2; });
     renderDimensions(primary);
     const reference = Boolean(primary && primary.userData.referenceImage === true);
