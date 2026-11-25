@@ -47,6 +47,12 @@ const { ground, gridGroup } = createGround(scene);
 
 // The default (home) view is derived from the work-area size in applySettings.
 const homeView = { position: HOME_CAMERA_POSITION.clone(), target: HOME_TARGET.clone() };
+// The gizmo is what the toolbar's three buttons switch: Move = translate arrows,
+// Rotate = rotate rings, Scale = scale arrows ending in squares. Pressing the lit
+// button again hides it. The on-object squares and the curved arrows are separate
+// handles and stay visible whatever the gizmo is doing.
+let gizmoMode = "translate";
+let gizmoVisible = false;
 let homeApplied = false;
 applyEnvironment(renderer, scene);
 
@@ -468,6 +474,9 @@ const ui = createUI({
   onPaste: pasteClipboard,
 });
 
+// Nothing lit at start: the object's own squares and arrows are the default UI.
+ui.setGizmoState({ mode: gizmoMode, visible: gizmoVisible });
+
 const interaction = createInteraction({
   renderer,
   camera,
@@ -697,8 +706,9 @@ function onToggleLock() {
 
 function syncGizmo() {
   const target = state.selected[0] ?? null;
-  // In scale mode the on-canvas frame handles do the resizing, so the arrow gizmo steps aside.
-  if (target && target.userData.locked !== true && transformControls.mode !== "scale") {
+  // All three modes use the gizmo, including scale (its arms end in squares).
+  if (gizmoVisible && target && target.userData.locked !== true) {
+    if (transformControls.mode !== gizmoMode) transformControls.setMode(gizmoMode);
     if (transformControls.object !== target) transformControls.attach(target);
   } else {
     transformControls.detach();
@@ -706,13 +716,21 @@ function syncGizmo() {
 }
 
 function onSetMode(mode) {
-  transformControls.setMode(mode);
+  if (frameDrag || transformControls.dragging) return; // never switch mid-drag
+  // Same button twice hides the gizmo; any other button switches its function on.
+  if (gizmoVisible && gizmoMode === mode) {
+    gizmoVisible = false;
+  } else {
+    gizmoMode = mode;
+    gizmoVisible = true;
+  }
   syncGizmo();
-  ui.setActiveMode(mode);
+  ui.setGizmoState({ mode: gizmoMode, visible: gizmoVisible });
   updateRotationSnap();
 }
 
-// Rotation snapping: free by default, 15deg steps while Shift is held (rotate mode only).
+// Rotation snapping for the gizmo: free by default, 15deg steps while Shift is held.
+// The on-object arrows read `shiftHeld` directly in frameDragMove.
 const ROTATION_SNAP_DEG = 15;
 const PITCH_DEG_PER_PX = 0.75; // vertical drag of the tilt arrow
 const ROLL_DEG_PER_PX = 0.75; // horizontal drag of the roll arrow
@@ -1470,26 +1488,27 @@ function updateFrameFromSelection() {
   // Freeze the frame while a rotation drag runs: the world AABB grows as the
   // selection turns, which would make the handles slide under the pointer.
   const box = frameDrag && frameDrag.rotate ? frameDrag.box : state.selected.length ? unionBounds(state.selected) : null;
+  const selected = selectionFrameVisible();
   updateResizeFrame(resizeFrame, {
     box,
     camera,
     viewportHeight: renderer.domElement.clientHeight,
-    visible: selectionFrameVisible(),
+    visible: selected,
   });
   updateRotationHandles(rotationHandles, {
     box,
     camera,
     viewportHeight: renderer.domElement.clientHeight,
-    visible: selectionFrameVisible(),
+    visible: selected,
     turn: selectionTurn("turnY"),
     tilt: selectionTurn("turnX"),
     roll: selectionTurn("turnZ"),
     expandedAxis: rotationExpandedAxis,
   });
-  if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
+  if (activeHandle && box && selected) showHandleRuler(activeHandle, box);
   // Always keep the angle chip live while a rotation drag is running.
   if (frameDrag && frameDrag.rotate) showRotationReadout(frameDrag.box);
-  if (selectionFrameVisible() === false) renderer.domElement.style.cursor = "";
+  if (selected === false) renderer.domElement.style.cursor = "";
 }
 
 function showHandleRuler(id, box) {

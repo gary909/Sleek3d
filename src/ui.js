@@ -362,12 +362,16 @@ export function createUI({
     }
   }
 
-  function setActiveMode(mode) {
+  // One gizmo function at a time: a button is lit only while its mode is showing.
+  // Pressing the lit button again hides the gizmo, so every button can be dark.
+  function setGizmoState({ mode, visible }) {
     modeBtns.forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.mode === mode);
+      const on = visible === true && btn.dataset.mode === mode;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     const rotateHint = document.getElementById('rotate-hint');
-    if (rotateHint) rotateHint.hidden = mode !== 'rotate';
+    if (rotateHint) rotateHint.hidden = !(visible === true && mode === 'rotate');
   }
 
   function setHistoryState(canUndo, canRedo) {
@@ -379,7 +383,7 @@ export function createUI({
     pasteBtn.disabled = !hasClipboard;
   }
 
-  return { refresh, setActiveMode, setHistoryState, setClipboardState };
+  return { refresh, setGizmoState, setHistoryState, setClipboardState };
 }
 
 export function createSettingsPanel({ settings, onUpdate }) {
