@@ -31,6 +31,9 @@ export function createInteraction({
   onFrameDragStart,
   onFrameDragMove,
   onFrameDragEnd,
+  onBodyDragStart,
+  onBodyDragMove,
+  onBodyDragEnd,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -41,6 +44,7 @@ export function createInteraction({
   let hovered = null;
   let pointerDownOnCanvas = false;
   let frameDrag = null;
+  let bodyDrag = null;
   let hoveredHandle = null;
 
   function updatePointer(event) {
@@ -83,7 +87,7 @@ export function createInteraction({
   }
 
   function onPointerMove(event) {
-    if (frameDrag !== null) return; // frame drags are tracked on the window
+    if (frameDrag !== null || bodyDrag !== null) return; // drags are tracked on the window
     updatePointer(event);
     const handle = pickFrameHandle ? pickFrameHandle(raycaster) : null;
     if (handle !== hoveredHandle) {
@@ -102,6 +106,8 @@ export function createInteraction({
       hovered = object;
       applyHighlight();
     }
+    // Shapes can be dragged, so advertise it; handles set their own cursor above.
+    renderer.domElement.style.cursor = object && object.userData.locked !== true ? "grab" : "";
   }
 
   function setSelected(meshes) {
@@ -147,9 +153,32 @@ export function createInteraction({
     pointerDownOnCanvas = true;
     downX = event.clientX;
     downY = event.clientY;
+    // Grab the shape under the cursor: pressing and moving slides it across the
+    // floor. The owner decides whether it wants the drag (locked shapes, gizmo
+    // arms and Shift all refuse).
+    if (frameDrag !== null) return;
+    const object = pick(event);
+    if (!object) return;
+    if (onBodyDragStart?.(object, raycaster, event) === true) {
+      bodyDrag = { object, downX: event.clientX, downY: event.clientY, active: false };
+      renderer.domElement.style.cursor = "grabbing";
+    }
   }
 
   function onPointerUp(event) {
+    if (bodyDrag !== null) {
+      const wasActive = bodyDrag.active;
+      bodyDrag = null;
+      renderer.domElement.style.cursor = "";
+      // Always close the session: a press that never moved still has to release
+      // the owner's drag state, otherwise the next press would refuse to start.
+      onBodyDragEnd?.();
+      if (wasActive) {
+        pointerDownOnCanvas = false;
+        return;
+      }
+      // A press and release without movement is still a plain click.
+    }
     if (frameDrag !== null) {
       const handle = frameDrag;
       frameDrag = null;
@@ -239,12 +268,21 @@ export function createInteraction({
   // A frame drag keeps following the pointer even outside the canvas, so the
   // object keeps rotating instead of stopping at the canvas edge.
   window.addEventListener('pointermove', (event) => {
+    if (bodyDrag !== null) {
+      if (bodyDrag.active === false && Math.hypot(event.clientX - bodyDrag.downX, event.clientY - bodyDrag.downY) <= CLICK_THRESHOLD_PX) return;
+      bodyDrag.active = true;
+      updatePointer(event);
+      onBodyDragMove?.(raycaster, event);
+      return;
+    }
     if (frameDrag === null) return;
     updatePointer(event);
     onFrameDragMove?.(raycaster, event);
   });
   renderer.domElement.addEventListener('pointerleave', () => {
+    if (bodyDrag !== null) return;
     if (frameDrag !== null) return;
+    renderer.domElement.style.cursor = "";
     if (hovered !== null) {
       hovered = null;
       applyHighlight();

@@ -512,6 +512,9 @@ const interaction = createInteraction({
   onFrameDragStart: frameDragStart,
   onFrameDragMove: frameDragMove,
   onFrameDragEnd: frameDragEnd,
+  onBodyDragStart: beginBodyDrag,
+  onBodyDragMove: moveBodyDrag,
+  onBodyDragEnd: endBodyDrag,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -1847,6 +1850,97 @@ function frameDragEnd() {
   scheduleSave();
 }
 
+
+// ---- body drag: press a shape and slide it across the floor ------------------
+// Vertical movement is impossible by construction: only x/z are ever written.
+
+let bodyDrag = null;
+
+// Where the pointer ray crosses a horizontal plane at `y`.
+function horizontalPoint(raycaster, y) {
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -y);
+  return raycaster.ray.intersectPlane(plane, new THREE.Vector3());
+}
+
+function beginBodyDrag(object, raycaster, event) {
+  if (bodyDrag !== null) endBodyDrag(); // self-healing: never inherit a stale session
+  if (frameDrag !== null) return false;
+  if (event && event.shiftKey) return false; // Shift builds a selection instead
+  if (transformControls.dragging || transformControls.axis) return false; // gizmo wins
+  if (object.userData.locked === true) return false;
+  if (!raycaster) return false;
+  // Grab on a plane through the shape's middle: the delta then reads naturally
+  // however high the object sits, and only its x/z are ever used.
+  const bounds = new THREE.Box3().setFromObject(object);
+  const planeY = (bounds.min.y + bounds.max.y) / 2;
+  const start = horizontalPoint(raycaster, planeY);
+  if (!start) return false;
+  // Grab-and-go: pressing an unselected shape selects it and starts dragging.
+  if (state.selected.includes(object) === false) interaction.setSelected([object]);
+  if (state.selected.length === 0) return false;
+  bodyDrag = {
+    planeY,
+    start,
+    entries: state.selected.map((o) => ({ object: o, before: captureTransform(o) })),
+  };
+  gesture = { mode: "translate", startPos: bodyDrag.entries[0].before.position.clone() };
+  activeHandle = null;
+  hideResizeMeasures(resizeFrame);
+  hideRotationChip(resizeFrame);
+  return true;
+}
+
+function moveBodyDrag(raycaster) {
+  if (bodyDrag === null) return;
+  const point = horizontalPoint(raycaster, bodyDrag.planeY);
+  if (!point) return;
+  let dx = point.x - bodyDrag.start.x;
+  let dz = point.z - bodyDrag.start.z;
+  // Snap the movement, not the positions, so a multi-selection keeps its offsets.
+  const step = state.snap;
+  if (step > 0) {
+    dx = Math.round(dx / step) * step;
+    dz = Math.round(dz / step) * step;
+  }
+  bodyDrag.entries.forEach(({ object, before }) => {
+    object.position.set(before.position.x + dx, before.position.y, before.position.z + dz);
+  });
+  updateRuler();
+  updateMeasure();
+  ui.refresh();
+}
+
+function endBodyDrag() {
+  if (bodyDrag === null) return;
+  const entries = bodyDrag.entries;
+  bodyDrag = null;
+  gesture = null;
+  updateRuler(); // hides the ruler groups
+  const objects = entries.map((entry) => entry.object);
+  const before = entries.map((entry) => entry.before);
+  const moved = objects.some((object, i) => object.position.equals(before[i].position) === false);
+  if (moved) {
+    const after = objects.map((object) => captureTransform(object));
+    history.push({
+      undo: () => {
+        objects.forEach((object, i) => applyTransform(object, before[i]));
+        ui.refresh();
+        updateMeasure();
+        scheduleSave();
+      },
+      redo: () => {
+        objects.forEach((object, i) => applyTransform(object, after[i]));
+        ui.refresh();
+        updateMeasure();
+        scheduleSave();
+      },
+    });
+    updateHistoryUI();
+  }
+  ui.refresh();
+  updateMeasure();
+  scheduleSave();
+}
 
 // Draw the readout value into the ruler's chip texture.
 function drawRulerText(text) {
