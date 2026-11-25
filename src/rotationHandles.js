@@ -15,6 +15,13 @@ const TILT_BASIS = new THREE.Matrix4().makeBasis(
   new THREE.Vector3(0, 1, 0),
   new THREE.Vector3(-1, 0, 0)
 );
+// Fixed frame for the roll arrow: the 90 degree mirror of TILT_BASIS, so its
+// arch stands in the XY plane and faces the viewer from behind the object.
+const ROLL_BASIS = new THREE.Matrix4().makeBasis(
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(0, 1, 0),
+  new THREE.Vector3(0, 0, 1)
+);
 const GRAB_PX = 30; // invisible grab target size around each arc
 const MARK_STEP = Math.PI / 12; // 15 degrees between protractor marks
 const MARK_COUNT = 25; // one mark per 15 degrees around a full ring
@@ -22,6 +29,8 @@ const MARK_PX = 7; // protractor mark length
 const MARK_BREADTH_PX = 1.6;
 const PITCH_CLEARANCE_PX = 12; // the arch sits this far above the object lid
 const PITCH_RADIUS_PX = 34; // the pitch arrow faces the camera above the box
+const ROLL_CLEARANCE_PX = 12; // the roll arch sits this far behind the back face
+const ROLL_RADIUS_PX = 34; // the roll arrow arches across the back of the box
 const BASE_COLOR = 0xffffff;
 const HOVER_COLOR = 0x4a90d9;
 const ORIGIN_COLOR = 0xe05555; // red tick marking the original orientation
@@ -145,10 +154,20 @@ export function createRotationHandles() {
   group.add(pitchPivot);
   items.push({ id: "rotX", pivot: pitchPivot, view: pitchView, material: pitchView.material });
 
+  const rollPivot = new THREE.Group();
+  const rollView = makeArc();
+  rollView.group.userData.handle = "rotZ";
+  rollView.arc.userData.handle = "rotZ";
+  rollView.head.userData.handle = "rotZ";
+  rollView.grab.userData.handle = "rotZ";
+  rollPivot.add(rollView.group);
+  group.add(rollPivot);
+  items.push({ id: "rotZ", pivot: rollPivot, view: rollView, material: rollView.material });
+
   return { group, items };
 }
 
-export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0, expandedAxis = null, tilt = 0 }) {
+export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0, expandedAxis = null, tilt = 0, roll = 0 }) {
   const show = visible === true && box && box.isEmpty() === false && viewportHeight > 0;
   handles.group.visible = show;
   if (show === false) return;
@@ -183,32 +202,58 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
       item.view.originTick.scale.set(tickWidth, tickBreadth, 1);
       return;
     }
-    // The tilt arrow lies flat above the box: its plane normal is the world up
-    // axis, and its half-circle opens towards the viewer.
+    if (item.id === "rotX") {
+      // The tilt arrow lies flat above the box: its plane normal is the world up
+      // axis, and its half-circle opens towards the viewer.
 
-    const expanded = expandedAxis === "tilt"; // only this arrow grows
-    item.pivot.position.set(centre.x, box.max.y + PITCH_CLEARANCE_PX * wpp, centre.z);
-    // Turned 180 degrees about the up axis: the flat arc bows away from the
-    // viewer, so on screen it reads as a rainbow arching over the object.
-    item.pivot.quaternion.setFromRotationMatrix(TILT_BASIS);
+      const expanded = expandedAxis === "tilt"; // only this arrow grows
+      item.pivot.position.set(centre.x, box.max.y + PITCH_CLEARANCE_PX * wpp, centre.z);
+      // Turned 180 degrees about the up axis: the flat arc bows away from the
+      // viewer, so on screen it reads as a rainbow arching over the object.
+      item.pivot.quaternion.setFromRotationMatrix(TILT_BASIS);
+      item.view.group.visible = true;
+      const radius = PITCH_RADIUS_PX * wpp;
+      const span = expanded ? Math.PI : Math.PI / 4;
+      const start = expanded ? 0 : Math.PI / 2 - Math.PI / 8;
+      layoutArc(item.view, radius, start, span, wpp, expanded, expanded ? HEAD_PX : HEAD_PX_COLLAPSED, true);
+      // Protractor: the red mark stays upright (top of the arch), the white tick
+      // follows how far the object has been tilted.
+      const tiltAngle = Math.PI / 2 - Math.max(-Math.PI / 2, Math.min(Math.PI / 2, tilt));
+      const tickW = 12 * wpp;
+      const tickB = 2.6 * wpp;
+      item.view.tick.visible = expanded && Math.abs(tilt) > 0.02;
+      item.view.tick.position.set(Math.cos(tiltAngle) * radius, Math.sin(tiltAngle) * radius, 0);
+      item.view.tick.rotation.z = tiltAngle;
+      item.view.tick.scale.set(tickW, tickB, 1);
+      item.view.originTick.visible = expanded;
+      item.view.originTick.position.set(0, radius, 0);
+      item.view.originTick.rotation.z = Math.PI / 2;
+      item.view.originTick.scale.set(tickW, tickB, 1);
+      return;
+    }
+    // The roll arrow stands at the back of the box: its plane normal is the depth
+    // axis, so the arch faces the viewer and reads as a lean left or right.
+    const rollExpanded = expandedAxis === "roll"; // only this arrow grows
+    item.pivot.position.set(centre.x, centre.y, box.min.z - ROLL_CLEARANCE_PX * wpp);
+    item.pivot.quaternion.setFromRotationMatrix(ROLL_BASIS);
     item.view.group.visible = true;
-    const radius = PITCH_RADIUS_PX * wpp;
-    const span = expanded ? Math.PI : Math.PI / 4;
-    const start = expanded ? 0 : Math.PI / 2 - Math.PI / 8;
-    layoutArc(item.view, radius, start, span, wpp, expanded, expanded ? HEAD_PX : HEAD_PX_COLLAPSED, true);
-    // Protractor: the red mark stays upright (top of the arch), the white tick
-    // follows how far the object has been tilted.
-    const tiltAngle = Math.PI / 2 - Math.max(-Math.PI / 2, Math.min(Math.PI / 2, tilt));
-    const tickW = 12 * wpp;
-    const tickB = 2.6 * wpp;
-    item.view.tick.visible = expanded && Math.abs(tilt) > 0.02;
-    item.view.tick.position.set(Math.cos(tiltAngle) * radius, Math.sin(tiltAngle) * radius, 0);
-    item.view.tick.rotation.z = tiltAngle;
-    item.view.tick.scale.set(tickW, tickB, 1);
-    item.view.originTick.visible = expanded;
-    item.view.originTick.position.set(0, radius, 0);
+    const rollRadius = ROLL_RADIUS_PX * wpp;
+    const rollSpan = rollExpanded ? Math.PI : Math.PI / 4;
+    const rollStart = rollExpanded ? 0 : Math.PI / 2 - Math.PI / 8;
+    layoutArc(item.view, rollRadius, rollStart, rollSpan, wpp, rollExpanded, rollExpanded ? HEAD_PX : HEAD_PX_COLLAPSED, true);
+    // A positive turn about +Z carries the top of the box towards local angle
+    // PI/2 + roll, so the white tick trails the lean; the red tick stays upright.
+    const rollAngle = Math.PI / 2 + Math.max(-Math.PI / 2, Math.min(Math.PI / 2, roll));
+    const rollTickW = 12 * wpp;
+    const rollTickB = 2.6 * wpp;
+    item.view.tick.visible = rollExpanded && Math.abs(roll) > 0.02;
+    item.view.tick.position.set(Math.cos(rollAngle) * rollRadius, Math.sin(rollAngle) * rollRadius, 0);
+    item.view.tick.rotation.z = rollAngle;
+    item.view.tick.scale.set(rollTickW, rollTickB, 1);
+    item.view.originTick.visible = rollExpanded;
+    item.view.originTick.position.set(0, rollRadius, 0);
     item.view.originTick.rotation.z = Math.PI / 2;
-    item.view.originTick.scale.set(tickW, tickB, 1);
+    item.view.originTick.scale.set(rollTickW, rollTickB, 1);
   });
 }
 

@@ -715,6 +715,7 @@ function onSetMode(mode) {
 // Rotation snapping: free by default, 15deg steps while Shift is held (rotate mode only).
 const ROTATION_SNAP_DEG = 15;
 const PITCH_DEG_PER_PX = 0.75; // vertical drag of the tilt arrow
+const ROLL_DEG_PER_PX = 0.75; // horizontal drag of the roll arrow
 
 function updateRotationSnap() {
   const snapping = shiftHeld && transformControls.mode === 'rotate';
@@ -1447,14 +1448,22 @@ function selectionFrameVisible() {
   return state.selected.length > 0 && lockedSelection() === false;
 }
 
-// How far the selection has turned from its original orientation (yaw only),
-// plus the in-progress drag so the tick follows the pointer live.
-function selectionTurn(isPitch = false) {
+// How far the selection has turned from its original orientation about one axis
+// ("turnY" yaw, "turnX" tilt, "turnZ" roll), plus the in-progress drag so the
+// ticks follow the pointer live.
+function selectionTurn(key = "turnY") {
   const object = state.selected[0];
   if (!object) return 0;
-  const base = (isPitch ? object.userData.turnX : object.userData.turnY) || 0;
-  const drag = frameDrag && frameDrag.rotate && frameDrag.rotate.isPitch === isPitch ? frameDrag.rotate.delta || 0 : 0;
+  const base = object.userData[key] || 0;
+  const drag = frameDrag && frameDrag.rotate && frameDrag.rotate.key === key ? frameDrag.rotate.delta || 0 : 0;
   return base + drag;
+}
+
+// The userData slot that records a rotate handle's running angle.
+function rotationKeyForHandle(id) {
+  if (id === "rotX") return "turnX";
+  if (id === "rotZ") return "turnZ";
+  return "turnY";
 }
 
 function updateFrameFromSelection() {
@@ -1472,8 +1481,9 @@ function updateFrameFromSelection() {
     camera,
     viewportHeight: renderer.domElement.clientHeight,
     visible: selectionFrameVisible(),
-    turn: selectionTurn(false),
-    tilt: selectionTurn(true),
+    turn: selectionTurn("turnY"),
+    tilt: selectionTurn("turnX"),
+    roll: selectionTurn("turnZ"),
     expandedAxis: rotationExpandedAxis,
   });
   if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
@@ -1562,13 +1572,15 @@ function frameHandleHover(id) {
   setHoveredResizeHandle(resizeFrame, id);
   setHoveredRotationHandle(rotationHandles, id);
   if (id && selectionFrameVisible()) {
-    const cursor = isRotateHandle(id)
-      ? "grab"
-      : id === "top" || id === "n" || id === "s"
-        ? "ns-resize"
-        : id === "e" || id === "w"
-          ? "ew-resize"
-          : "nwse-resize";
+    const cursor = id === "rotZ"
+      ? "ew-resize"
+      : isRotateHandle(id)
+        ? "grab"
+        : id === "top" || id === "n" || id === "s"
+          ? "ns-resize"
+          : id === "e" || id === "w"
+            ? "ew-resize"
+            : "nwse-resize";
     renderer.domElement.style.cursor = cursor;
     showHandleRuler(id, unionBounds(state.selected));
   } else {
@@ -1593,7 +1605,7 @@ function dragPointFor(raycaster, box, id) {
 }
 
 function isRotateHandle(id) {
-  return id === "rotY" || id === "rotX";
+  return id === "rotY" || id === "rotX" || id === "rotZ";
 }
 
 function rotationPoint(raycaster, centre, axis) {
@@ -1613,7 +1625,7 @@ function pixelsToWorld(point) {
 // turned from its original orientation. Drawn in its own chip.
 function showRotationReadout(box) {
   const drag = frameDrag && frameDrag.rotate ? frameDrag.rotate : null;
-  const radians = selectionTurn(drag ? drag.isPitch : activeHandle === "rotX");
+  const radians = selectionTurn(drag ? drag.key : rotationKeyForHandle(activeHandle));
   // One decimal of precision, trimmed for whole (e.g. Shift-snapped) values.
   const exact = THREE.MathUtils.radToDeg(radians);
   const degrees = Math.abs(exact % 1) < 0.05 ? String(Math.round(exact)) : exact.toFixed(1);
@@ -1660,18 +1672,19 @@ function frameDragStart(id, raycaster, event) {
     })),
   };
   if (isRotateHandle(id)) {
-    rotationExpandedAxis = id === "rotY" ? "yaw" : "tilt";
+    rotationExpandedAxis = id === "rotY" ? "yaw" : id === "rotX" ? "tilt" : "roll";
     const centre = box.getCenter(new THREE.Vector3());
-    const axis = id === "rotY" ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
+    const axis = id === "rotY" ? new THREE.Vector3(0, 1, 0) : id === "rotX" ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
     const point = raycaster && id === "rotY" ? rotationPoint(raycaster, centre, axis) : null;
     frameDrag.rotate = {
       centre,
       axis,
-      isPitch: id === "rotX",
+      key: rotationKeyForHandle(id),
       delta: 0,
       startAngle: point ? yawAngle(centre, point) : 0,
       startY: event ? event.clientY : 0,
-      snapshots: state.selected.map((object) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0, turnX: object.userData.turnX || 0 })),
+      startX: event ? event.clientX : 0,
+      snapshots: state.selected.map((object) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0, turnX: object.userData.turnX || 0, turnZ: object.userData.turnZ || 0 })),
     };
   }
   transformControls.detach();
@@ -1692,12 +1705,16 @@ function snapBasesToPlane(snapshots) {
 function frameDragMove(raycaster, event) {
   if (frameDrag === null) return;
   if (frameDrag.rotate) {
-    const { centre, axis, isPitch, startAngle, startY, snapshots: rotateSnapshots } = frameDrag.rotate;
+    const { centre, axis, key, startAngle, startY, startX, snapshots: rotateSnapshots } = frameDrag.rotate;
     let raw = 0;
-    if (isPitch) {
+    if (key === "turnX") {
       // Vertical drag tilts the selection: about PITCH_DEG_PER_PX degrees per pixel.
       // Drag up (forwards) tips the object away from the viewer.
       raw = ((event ? event.clientY : startY) - startY) * THREE.MathUtils.degToRad(PITCH_DEG_PER_PX);
+    } else if (key === "turnZ") {
+      // Horizontal drag leans the selection: dragging right tips the top towards
+      // +X, which is a negative turn about +Z.
+      raw = ((event ? event.clientX : startX) - startX) * THREE.MathUtils.degToRad(-ROLL_DEG_PER_PX);
     } else {
       const point = rotationPoint(raycaster, centre, axis);
       if (!point) return;
@@ -1758,15 +1775,14 @@ function frameDragEnd() {
   if (frameDrag === null) return;
   if (frameDrag.rotate) {
     rotationExpandedAxis = null;
-    const { snapshots: rotateSnapshots, isPitch, delta } = frameDrag.rotate;
+    const { snapshots: rotateSnapshots, key, delta } = frameDrag.rotate;
     if (delta) {
-      const key = isPitch ? "turnX" : "turnY";
       rotateSnapshots.forEach(({ object }) => {
         const next = (object.userData[key] || 0) + delta;
         object.userData[key] = Math.atan2(Math.sin(next), Math.cos(next));
       });
     }
-    const after = rotateSnapshots.map(({ object }) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0, turnX: object.userData.turnX || 0 }));
+    const after = rotateSnapshots.map(({ object }) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0, turnX: object.userData.turnX || 0, turnZ: object.userData.turnZ || 0 }));
     const turned = rotateSnapshots.some((before, i) => before.position.equals(after[i].position) === false || before.quaternion.equals(after[i].quaternion) === false);
     showRotationReadout(frameDrag.box);
     frameDrag = null;

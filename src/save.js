@@ -42,6 +42,7 @@ function objectToJSON(object) {
       locked: object.userData.locked === true,
       turnY: object.userData.turnY ?? 0,
       turnX: object.userData.turnX ?? 0,
+      turnZ: object.userData.turnZ ?? 0,
       geometry: geometryToJSON(object.geometry),
     };
   }
@@ -86,6 +87,7 @@ function objectFromJSON(json) {
       locked: json.locked === true,
       turnY: json.turnY ?? 0,
       turnX: json.turnX ?? 0,
+      turnZ: json.turnZ ?? 0,
     };
     return mesh;
   }
