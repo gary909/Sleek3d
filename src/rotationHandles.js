@@ -148,7 +148,7 @@ export function createRotationHandles() {
   return { group, items };
 }
 
-export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0, expanded = false, tilt = 0 }) {
+export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0, expandedAxis = null, tilt = 0 }) {
   const show = visible === true && box && box.isEmpty() === false && viewportHeight > 0;
   handles.group.visible = show;
   if (show === false) return;
@@ -162,6 +162,7 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
 
   handles.items.forEach((item) => {
     if (item.key) {
+      const expanded = expandedAxis === "yaw"; // only this arrow grows
       const reach = item.key === "e" || item.key === "w" ? width / 2 : depth / 2;
       const radius = reach + ARC_RADIUS_PX * wpp;
       const span = expanded ? ARC_SPAN : ARC_SPAN_COLLAPSED;
@@ -185,6 +186,7 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
     // The tilt arrow lies flat above the box: its plane normal is the world up
     // axis, and its half-circle opens towards the viewer.
 
+    const expanded = expandedAxis === "tilt"; // only this arrow grows
     item.pivot.position.set(centre.x, centre.y, box.max.z + PITCH_GAP_PX * wpp);
     // Turned 180 degrees about the up axis: the flat arc bows away from the
     // viewer, so on screen it reads as a rainbow arching over the object.
