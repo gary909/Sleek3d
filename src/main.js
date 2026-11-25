@@ -21,7 +21,7 @@ import {
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures, showRotationChip, hideRotationChip } from './resizeFrame.js';
-import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale, EDGE_HANDLES, edgeTarget } from './selectionResize.js';
+import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale, resetSnapshots, EDGE_HANDLES, edgeTarget } from './selectionResize.js';
 import { createRotationHandles, updateRotationHandles, pickRotationHandle, setHoveredRotationHandle } from './rotationHandles.js';
 import { yawAngle, snapAngle, applyRotation, restoreRotations } from './selectionRotate.js';
 import { createInteraction } from './interaction.js';
@@ -55,20 +55,6 @@ let gizmoMode = "translate";
 let gizmoVisible = false;
 let homeApplied = false;
 applyEnvironment(renderer, scene);
-
-// Measurement label: a billboard sprite attached above the selected object.
-const measureCanvas = document.createElement('canvas');
-measureCanvas.width = 1024;
-measureCanvas.height = 150;
-const measureCtx = measureCanvas.getContext('2d');
-const measureTexture = new THREE.CanvasTexture(measureCanvas);
-measureTexture.minFilter = THREE.LinearFilter;
-const measureSprite = new THREE.Sprite(
-  new THREE.SpriteMaterial({ map: measureTexture, transparent: true, depthTest: false, depthWrite: false })
-);
-measureSprite.renderOrder = 999;
-measureSprite.visible = false;
-scene.add(measureSprite);
 
 // Tinkercad-style resize frame drawn around the current selection.
 const resizeFrame = createResizeFrame();
@@ -472,6 +458,7 @@ const ui = createUI({
   onAlign: alignSelection,
   onCopy: copySelected,
   onPaste: pasteClipboard,
+  onTransformField,
 });
 
 // Nothing lit at start: the object's own squares and arrows are the default UI.
@@ -1399,62 +1386,123 @@ function labelWorldHeight() {
 }
 // Live measurement label, attached above the selected object (billboard sprite).
 // Fixed-width fields + a fixed number of lines so the label never changes size.
+// W/D/H and X/Y/Z of the selection, shown in the inspector Size & Position block.
+// Cheap enough to run every frame: the UI only rewrites fields that changed.
 function updateMeasure() {
-  const object = state.selected[0];
-  if (!object) {
-    measureSprite.visible = false;
+  const primary = state.selected[0];
+  if (!primary) {
+    ui.setTransformValues(null);
     return;
   }
-  const box = objectBox(object);
+  const box = unionBounds(state.selected);
   if (box.isEmpty()) {
-    measureSprite.visible = false;
+    ui.setTransformValues(null);
     return;
   }
-
   const size = box.getSize(new THREE.Vector3());
-  const pos = object.position;
-
-  const pad = 6;
-  const fmt = (v) => formatLength(v, settings).padStart(pad) + ' ' + getUnit(settings);
-  const sep = ' · ';
-
-  const sizeText = `W ${fmt(size.x)}${sep}D ${fmt(size.z)}${sep}H ${fmt(size.y)}`;
-  const posText = `X ${fmt(pos.x)}${sep}Y ${fmt(pos.y)}${sep}Z ${fmt(pos.z)}`;
-
-  const lines = [sizeText, posText];
-
-  const font = 'bold 40px ui-monospace, Menlo, Consolas, monospace';
-  measureCtx.font = font;
-  let textWidth = 0;
-  for (const line of lines) textWidth = Math.max(textWidth, measureCtx.measureText(line).width);
-
-  const padX = 36;
-  const lineH = 50;
-  const padY = 20;
-  const w = Math.ceil(textWidth + padX * 2);
-  const h = padY * 2 + lines.length * lineH;
-
-  if (measureCanvas.width !== w) measureCanvas.width = w;
-  if (measureCanvas.height !== h) measureCanvas.height = h;
-
-  measureCtx.font = font;
-  measureCtx.textAlign = 'center';
-  measureCtx.textBaseline = 'middle';
-  measureCtx.clearRect(0, 0, w, h);
-  measureCtx.fillStyle = 'rgba(20, 24, 28, 0.88)';
-  roundedRect(measureCtx, 4, 4, w - 8, h - 8, 24);
-  measureCtx.fill();
-  measureCtx.fillStyle = '#ffffff';
-  lines.forEach((line, i) => {
-    measureCtx.fillText(line, w / 2, padY + lineH * (i + 0.5));
+  ui.setTransformValues({
+    w: size.x,
+    d: size.z,
+    h: size.y,
+    x: primary.position.x,
+    y: primary.position.y,
+    z: primary.position.z,
+    locked: lockedSelection(),
   });
-  measureTexture.needsUpdate = true;
+}
 
-  const center = box.getCenter(new THREE.Vector3());
-  const worldHeight = labelWorldHeight();
-  measureSprite.position.set(center.x, box.max.y + worldHeight * 1.4, center.z);
-  measureSprite.scale.set(worldHeight * (w / h), worldHeight, 1);
-  measureSprite.visible = true;
+// ---- inspector size / position fields ---------------------------------------
+
+let transformGesture = null; // a live edit typed into the Size & Position fields
+
+function beginTransformGesture(kind) {
+  if (transformGesture && transformGesture.kind === kind) return transformGesture;
+  if (transformGesture) commitTransformGesture();
+  transformGesture = {
+    kind,
+    box: unionBounds(state.selected),
+    origin: state.selected[0].position.clone(),
+    entries: state.selected.map((object) => ({
+      object,
+      position: object.position.clone(),
+      scale: object.scale.clone(),
+      params: object.userData.params ? { ...object.userData.params } : null,
+      baseY: new THREE.Box3().setFromObject(object).min.y,
+    })),
+  };
+  return transformGesture;
+}
+
+// Size fields anchor on the min edge (and the base for height) so the opposite
+// side stays put, exactly like the frame's east/south/top handles. Position
+// fields shift the whole selection by the same delta.
+function onTransformField(axis, valueMm, committed) {
+  if (lockedSelection()) return;
+  if (state.selected.length === 0 || Number.isFinite(valueMm) === false) return;
+  const isSize = axis === "w" || axis === "d" || axis === "h";
+  const gesture = beginTransformGesture(isSize ? "size" : "position");
+  if (isSize) {
+    const box = gesture.box;
+    if (box.isEmpty()) return;
+    const target = Math.max(FRAME_MIN_SIZE, valueMm);
+    resetSnapshots(gesture.entries); // rebuild from the pre-edit state so repeated keys can't drift
+    if (axis === "h") {
+      applyHeightScale(gesture.entries, box.min.y, target / Math.max(1e-4, box.max.y - box.min.y));
+    } else if (axis === "w") {
+      const sx = target / Math.max(1e-4, box.max.x - box.min.x);
+      applyCornerScale(gesture.entries, new THREE.Vector3(box.min.x, box.min.y, box.min.z), sx, 1);
+    } else {
+      const sz = target / Math.max(1e-4, box.max.z - box.min.z);
+      applyCornerScale(gesture.entries, new THREE.Vector3(box.min.x, box.min.y, box.min.z), 1, sz);
+    }
+    snapBasesToPlane(gesture.entries);
+  } else {
+    const delta = valueMm - gesture.origin[axis];
+    gesture.entries.forEach(({ object, position }) => {
+      object.position.set(
+        axis === "x" ? position.x + delta : position.x,
+        axis === "y" ? position.y + delta : position.y,
+        axis === "z" ? position.z + delta : position.z
+      );
+    });
+  }
+  updateMeasure();
+  ui.refresh();
+  if (committed) commitTransformGesture();
+}
+
+function commitTransformGesture() {
+  if (!transformGesture) return;
+  const gesture = transformGesture;
+  transformGesture = null;
+  // Fold any scale into the shape params so the dimension fields stay truthful.
+  if (gesture.kind === "size") {
+    gesture.entries.forEach(({ object, position }) => {
+      const finalPosition = object.position.clone();
+      const baseBefore = new THREE.Box3().setFromObject(object).min.y;
+      object.position.copy(position);
+      if (object.userData.params && SHAPE_DEFS[object.userData.shapeType]) bakeScaleIntoParams(object);
+      object.position.copy(finalPosition);
+      const baseAfter = new THREE.Box3().setFromObject(object).min.y;
+      object.position.y += baseBefore - baseAfter;
+    });
+  }
+  const before = gesture.entries.map(({ object, position, scale, params }) => ({ object, position, scale, params }));
+  const after = gesture.entries.map(({ object }) => ({
+    object,
+    position: object.position.clone(),
+    scale: object.scale.clone(),
+    params: object.userData.params ? { ...object.userData.params } : null,
+  }));
+  const changed = before.some((entry, i) => entry.position.equals(after[i].position) === false || entry.scale.equals(after[i].scale) === false);
+  if (changed) {
+    history.push({ undo: () => restoreFrameStates(before), redo: () => restoreFrameStates(after) });
+    updateHistoryUI();
+  }
+  syncGizmo();
+  ui.refresh();
+  updateMeasure();
+  scheduleSave();
 }
 
 // ---- resize frame -----------------------------------------------------------
@@ -2682,6 +2730,8 @@ function animate() {
   controls.update();
   updateGridLod(gridGroup, camera, renderer.domElement.clientHeight);
   updateFrameFromSelection();
+  // Keeps the inspector's Size & Position fields in step with everything else.
+  updateMeasure();
   viewCube.update();
   renderer.render(scene, camera);
 }

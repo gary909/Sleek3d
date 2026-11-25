@@ -32,6 +32,7 @@ export function createUI({
   onAlign,
   onCopy,
   onPaste,
+  onTransformField,
 }) {
   const inspectorEmpty = document.getElementById('inspector-empty');
   const inspectorBody = document.getElementById('inspector-body');
@@ -56,6 +57,34 @@ export function createUI({
   const alignBtns = Array.from(document.querySelectorAll('#align [data-align]'));
   const copyBtn = document.getElementById('copy');
   const pasteBtn = document.getElementById('paste');
+  const transformSection = document.getElementById('transform-values');
+  const transformFields = ['w', 'd', 'h', 'x', 'y', 'z'].reduce((fields, key) => {
+    const input = document.getElementById('value-' + key);
+    if (input) fields[key] = input;
+    return fields;
+  }, {});
+  const transformUnitSize = document.getElementById('value-unit-size');
+  const transformUnitPos = document.getElementById('value-unit-pos');
+
+  // Six editable fields mirroring the old floating readout: W/D/H of the box and
+  // X/Y/Z of the object. Typing applies live; leaving the field commits an undo step.
+  Object.entries(transformFields).forEach(([axis, input]) => {
+    input.addEventListener('input', () => {
+      const parsed = parseFloat(input.value);
+      if (Number.isFinite(parsed)) onTransformField(axis, toMm(parsed, settings), false);
+    });
+    input.addEventListener('change', () => {
+      const parsed = parseFloat(input.value);
+      if (Number.isFinite(parsed)) onTransformField(axis, toMm(parsed, settings), true);
+      input.blur();
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        input.blur();
+      }
+    });
+  });
 
   document.querySelectorAll('#toolbar .shape').forEach((btn) => {
     btn.addEventListener('click', () => onAdd(btn.dataset.shape));
@@ -374,6 +403,24 @@ export function createUI({
     if (rotateHint) rotateHint.hidden = !(visible === true && mode === 'rotate');
   }
 
+  // Values arrive in mm and are shown in the current unit. A field that has focus
+  // is left alone so typing is never overwritten mid-edit.
+  function setTransformValues(values) {
+    if (!transformSection) return;
+    transformSection.hidden = !values;
+    if (!values) return;
+    const unit = getUnit(settings);
+    if (transformUnitSize) transformUnitSize.textContent = unit;
+    if (transformUnitPos) transformUnitPos.textContent = unit;
+    Object.entries(transformFields).forEach(([axis, input]) => {
+      const disabled = values.locked === true;
+      if (input.disabled !== disabled) input.disabled = disabled;
+      if (document.activeElement === input) return;
+      const text = formatLength(values[axis], settings);
+      if (input.value !== text) input.value = text;
+    });
+  }
+
   function setHistoryState(canUndo, canRedo) {
     undoBtn.disabled = !canUndo;
     redoBtn.disabled = !canRedo;
@@ -383,7 +430,7 @@ export function createUI({
     pasteBtn.disabled = !hasClipboard;
   }
 
-  return { refresh, setGizmoState, setHistoryState, setClipboardState };
+  return { refresh, setGizmoState, setTransformValues, setHistoryState, setClipboardState };
 }
 
 export function createSettingsPanel({ settings, onUpdate }) {

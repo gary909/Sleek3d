@@ -347,6 +347,56 @@ section:first-child {
   margin: 4px 0;
 }
 
+/* Size & Position block: same rhythm as the Align rows, with editable fields. */
+#transform-values .value-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+#transform-values .value-label {
+  width: 26px;
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#transform-values .value-field {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+#transform-values .value-field > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#transform-values .value-field input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+#transform-values .value-field input:disabled {
+  color: var(--muted);
+  background: #f2f4f6;
+}
+
+#transform-values .value-unit {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted);
+}
+
 .align-row > span {
   width: 16px;
   color: var(--muted);
