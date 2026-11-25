@@ -1473,6 +1473,7 @@ function updateFrameFromSelection() {
     viewportHeight: renderer.domElement.clientHeight,
     visible: selectionFrameVisible(),
     turn: selectionTurn(false),
+    tilt: selectionTurn(true),
     expanded: rotationExpanded,
   });
   if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
@@ -1613,7 +1614,9 @@ function pixelsToWorld(point) {
 function showRotationReadout(box) {
   const drag = frameDrag && frameDrag.rotate ? frameDrag.rotate : null;
   const radians = selectionTurn(drag ? drag.isPitch : activeHandle === "rotX");
-  const degrees = Math.round(THREE.MathUtils.radToDeg(radians));
+  // One decimal of precision, trimmed for whole (e.g. Shift-snapped) values.
+  const exact = THREE.MathUtils.radToDeg(radians);
+  const degrees = Math.abs(exact % 1) < 0.05 ? String(Math.round(exact)) : exact.toFixed(1);
   const centre = box.getCenter(new THREE.Vector3());
   // Bottom of the object, on the side facing the viewer, just past the red tick.
   const outward = camera.getWorldDirection(new THREE.Vector3());

@@ -148,7 +148,7 @@ export function createRotationHandles() {
   return { group, items };
 }
 
-export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0, expanded = false }) {
+export function updateRotationHandles(handles, { box, camera, viewportHeight, visible, turn = 0, expanded = false, tilt = 0 }) {
   const show = visible === true && box && box.isEmpty() === false && viewportHeight > 0;
   handles.group.visible = show;
   if (show === false) return;
@@ -190,9 +190,23 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
     // viewer, so on screen it reads as a rainbow arching over the object.
     item.pivot.quaternion.setFromRotationMatrix(TILT_BASIS);
     item.view.group.visible = true;
-    item.view.tick.visible = false;
-    item.view.originTick.visible = false;
-    layoutArc(item.view, PITCH_RADIUS_PX * wpp, 0, Math.PI, wpp, false, HEAD_PX, true);
+    const radius = PITCH_RADIUS_PX * wpp;
+    const span = expanded ? Math.PI : Math.PI / 4;
+    const start = expanded ? 0 : Math.PI / 2 - Math.PI / 8;
+    layoutArc(item.view, radius, start, span, wpp, expanded, expanded ? HEAD_PX : HEAD_PX_COLLAPSED, true);
+    // Protractor: the red mark stays upright (top of the arch), the white tick
+    // follows how far the object has been tilted.
+    const tiltAngle = Math.PI / 2 - Math.max(-Math.PI / 2, Math.min(Math.PI / 2, tilt));
+    const tickW = 12 * wpp;
+    const tickB = 2.6 * wpp;
+    item.view.tick.visible = expanded && Math.abs(tilt) > 0.02;
+    item.view.tick.position.set(Math.cos(tiltAngle) * radius, Math.sin(tiltAngle) * radius, 0);
+    item.view.tick.rotation.z = tiltAngle;
+    item.view.tick.scale.set(tickW, tickB, 1);
+    item.view.originTick.visible = expanded;
+    item.view.originTick.position.set(0, radius, 0);
+    item.view.originTick.rotation.z = Math.PI / 2;
+    item.view.originTick.scale.set(tickW, tickB, 1);
   });
 }
 
