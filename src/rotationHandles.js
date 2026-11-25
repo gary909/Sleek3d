@@ -20,7 +20,7 @@ const MARK_STEP = Math.PI / 12; // 15 degrees between protractor marks
 const MARK_COUNT = 25; // one mark per 15 degrees around a full ring
 const MARK_PX = 7; // protractor mark length
 const MARK_BREADTH_PX = 1.6;
-const PITCH_GAP_PX = 40;
+const PITCH_CLEARANCE_PX = 12; // the arch sits this far above the object lid
 const PITCH_RADIUS_PX = 34; // the pitch arrow faces the camera above the box
 const BASE_COLOR = 0xffffff;
 const HOVER_COLOR = 0x4a90d9;
@@ -187,7 +187,7 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
     // axis, and its half-circle opens towards the viewer.
 
     const expanded = expandedAxis === "tilt"; // only this arrow grows
-    item.pivot.position.set(centre.x, centre.y, box.max.z + PITCH_GAP_PX * wpp);
+    item.pivot.position.set(centre.x, box.max.y + PITCH_CLEARANCE_PX * wpp, centre.z);
     // Turned 180 degrees about the up axis: the flat arc bows away from the
     // viewer, so on screen it reads as a rainbow arching over the object.
     item.pivot.quaternion.setFromRotationMatrix(TILT_BASIS);
