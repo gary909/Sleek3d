@@ -7,6 +7,14 @@ const ARC_THICK_PX = 1.2;
 const HEAD_PX = 7; // arrowhead length, screen pixels
 const HEAD_RADIUS_PX = 2.8;
 const HEAD_PX_COLLAPSED = 5; // compact head until the arrow is pressed
+
+// Fixed, world-aligned frame for the tilt arrow: flat, arching towards -Z so it
+// behaves like the yaw arrows and never rotates with the camera.
+const TILT_BASIS = new THREE.Matrix4().makeBasis(
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(0, 0, -1),
+  new THREE.Vector3(0, 1, 0)
+);
 const GRAB_PX = 30; // invisible grab target size around each arc
 const MARK_STEP = Math.PI / 12; // 15 degrees between protractor marks
 const MARK_COUNT = 25; // one mark per 15 degrees around a full ring
@@ -18,7 +26,6 @@ const BASE_COLOR = 0xffffff;
 const HOVER_COLOR = 0x4a90d9;
 const ORIGIN_COLOR = 0xe05555; // red tick marking the original orientation
 const UP = new THREE.Vector3(0, 1, 0);
-const FORWARD = new THREE.Vector3(0, 0, 1);
 
 // Where the four horizontal (yaw) arrows sit around the footprint.
 const YAW_KEYS = [
@@ -79,7 +86,7 @@ function makeArc() {
 }
 
 // Span the arc from spanStart to spanStart + ARC_SPAN and put the head on its tip.
-function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true, headPx = HEAD_PX) {
+function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true, headPx = HEAD_PX, flipHead = false) {
   view.arc.rotation.z = spanStart;
   view.arc.geometry.dispose();
   // Tube ratio is taken from the real radius so the arc stays ARC_THICK_PX thick.
@@ -97,9 +104,9 @@ function layoutArc(view, radiusWorld, spanStart, span, wpp, showMarks = true, he
     mark.rotation.z = a;
     mark.scale.set(MARK_PX * wpp, MARK_BREADTH_PX * wpp, 1);
   });
-  const a = spanStart + span;
+  const a = flipHead ? spanStart : spanStart + span;
   const cos = Math.cos(a);
-  const sin = Math.sin(a);
+  const sin = Math.sin(a) * (flipHead ? -1 : 1);
   const headLen = headPx * wpp;
   const headRad = headPx * (HEAD_RADIUS_PX / HEAD_PX) * wpp;
   view.head.position.set(cos * radiusWorld - sin * headLen * 0.5, sin * radiusWorld + cos * headLen * 0.5, 0);
@@ -176,15 +183,17 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
       item.view.originTick.scale.set(tickWidth, tickBreadth, 1);
       return;
     }
-    // The pitch arrow faces the camera and sits above the box, so it always reads
-    // as a curve: the tilt axis is horizontal and perpendicular to the view.
-    const forward = camera.getWorldDirection(new THREE.Vector3());
+    // The tilt arrow lies flat above the box: its plane normal is the world up
+    // axis, and its half-circle opens towards the viewer.
+
     item.pivot.position.set(centre.x, box.max.y + PITCH_GAP_PX * wpp, centre.z);
-    item.pivot.quaternion.setFromUnitVectors(FORWARD, forward);
+    // Turned 180 degrees about the up axis: the flat arc bows away from the
+    // viewer, so on screen it reads as a rainbow arching over the object.
+    item.pivot.quaternion.setFromRotationMatrix(TILT_BASIS);
     item.view.group.visible = true;
     item.view.tick.visible = false;
     item.view.originTick.visible = false;
-    layoutArc(item.view, PITCH_RADIUS_PX * wpp, 0, Math.PI, wpp, false);
+    layoutArc(item.view, PITCH_RADIUS_PX * wpp, 0, Math.PI, wpp, false, HEAD_PX, true);
   });
 }
 
