@@ -32,9 +32,10 @@ export function applyRotation(snapshots, pivot, axis, angle) {
 }
 
 export function restoreRotations(snapshots) {
-  snapshots.forEach(({ object, position, quaternion, turnY }) => {
+  snapshots.forEach(({ object, position, quaternion, turnY, turnX }) => {
     object.position.copy(position);
     object.quaternion.copy(quaternion);
     if (turnY !== undefined) object.userData.turnY = turnY;
+    if (turnX !== undefined) object.userData.turnX = turnX;
   });
 }

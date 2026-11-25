@@ -11,9 +11,9 @@ const HEAD_PX_COLLAPSED = 5; // compact head until the arrow is pressed
 // Fixed, world-aligned frame for the tilt arrow: flat, arching towards -Z so it
 // behaves like the yaw arrows and never rotates with the camera.
 const TILT_BASIS = new THREE.Matrix4().makeBasis(
-  new THREE.Vector3(1, 0, 0),
-  new THREE.Vector3(0, 0, -1),
-  new THREE.Vector3(0, 1, 0)
+  new THREE.Vector3(0, 0, 1),
+  new THREE.Vector3(0, 1, 0),
+  new THREE.Vector3(-1, 0, 0)
 );
 const GRAB_PX = 30; // invisible grab target size around each arc
 const MARK_STEP = Math.PI / 12; // 15 degrees between protractor marks
@@ -30,7 +30,6 @@ const UP = new THREE.Vector3(0, 1, 0);
 // Where the four horizontal (yaw) arrows sit around the footprint.
 const YAW_KEYS = [
   { key: "s", angle: -Math.PI / 2 },
-  { key: "n", angle: Math.PI / 2 },
 ];
 
 function worldPerPixel(camera, distance, viewportHeight) {
@@ -186,7 +185,7 @@ export function updateRotationHandles(handles, { box, camera, viewportHeight, vi
     // The tilt arrow lies flat above the box: its plane normal is the world up
     // axis, and its half-circle opens towards the viewer.
 
-    item.pivot.position.set(centre.x, box.max.y + PITCH_GAP_PX * wpp, centre.z);
+    item.pivot.position.set(centre.x, centre.y, box.max.z + PITCH_GAP_PX * wpp);
     // Turned 180 degrees about the up axis: the flat arc bows away from the
     // viewer, so on screen it reads as a rainbow arching over the object.
     item.pivot.quaternion.setFromRotationMatrix(TILT_BASIS);

@@ -1449,11 +1449,11 @@ function selectionFrameVisible() {
 
 // How far the selection has turned from its original orientation (yaw only),
 // plus the in-progress drag so the tick follows the pointer live.
-function selectionTurn() {
+function selectionTurn(isPitch = false) {
   const object = state.selected[0];
   if (!object) return 0;
-  const base = object.userData.turnY || 0;
-  const drag = frameDrag && frameDrag.rotate && frameDrag.rotate.isPitch === false ? frameDrag.rotate.delta || 0 : 0;
+  const base = (isPitch ? object.userData.turnX : object.userData.turnY) || 0;
+  const drag = frameDrag && frameDrag.rotate && frameDrag.rotate.isPitch === isPitch ? frameDrag.rotate.delta || 0 : 0;
   return base + drag;
 }
 
@@ -1472,7 +1472,7 @@ function updateFrameFromSelection() {
     camera,
     viewportHeight: renderer.domElement.clientHeight,
     visible: selectionFrameVisible(),
-    turn: selectionTurn(),
+    turn: selectionTurn(false),
     expanded: rotationExpanded,
   });
   if (activeHandle && box && selectionFrameVisible()) showHandleRuler(activeHandle, box);
@@ -1595,15 +1595,6 @@ function isRotateHandle(id) {
   return id === "rotY" || id === "rotX";
 }
 
-// Horizontal axis for the pitch arrow: the camera right vector, so the object
-// always tilts towards or away from the viewer.
-function pitchAxis() {
-  const axis = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
-  axis.y = 0;
-  if (axis.lengthSq() < 1e-6) axis.set(1, 0, 0);
-  return axis.normalize();
-}
-
 function rotationPoint(raycaster, centre, axis) {
   const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(axis, centre);
   return raycaster.ray.intersectPlane(plane, new THREE.Vector3());
@@ -1621,7 +1612,7 @@ function pixelsToWorld(point) {
 // turned from its original orientation. Drawn in its own chip.
 function showRotationReadout(box) {
   const drag = frameDrag && frameDrag.rotate ? frameDrag.rotate : null;
-  const radians = drag && drag.isPitch ? drag.delta || 0 : selectionTurn();
+  const radians = selectionTurn(drag ? drag.isPitch : activeHandle === "rotX");
   const degrees = Math.round(THREE.MathUtils.radToDeg(radians));
   const centre = box.getCenter(new THREE.Vector3());
   // Bottom of the object, on the side facing the viewer, just past the red tick.
@@ -1668,7 +1659,7 @@ function frameDragStart(id, raycaster, event) {
   if (isRotateHandle(id)) {
     rotationExpanded = true;
     const centre = box.getCenter(new THREE.Vector3());
-    const axis = id === "rotY" ? new THREE.Vector3(0, 1, 0) : pitchAxis();
+    const axis = id === "rotY" ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0);
     const point = raycaster && id === "rotY" ? rotationPoint(raycaster, centre, axis) : null;
     frameDrag.rotate = {
       centre,
@@ -1677,7 +1668,7 @@ function frameDragStart(id, raycaster, event) {
       delta: 0,
       startAngle: point ? yawAngle(centre, point) : 0,
       startY: event ? event.clientY : 0,
-      snapshots: state.selected.map((object) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0 })),
+      snapshots: state.selected.map((object) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0, turnX: object.userData.turnX || 0 })),
     };
   }
   transformControls.detach();
@@ -1702,7 +1693,8 @@ function frameDragMove(raycaster, event) {
     let raw = 0;
     if (isPitch) {
       // Vertical drag tilts the selection: about PITCH_DEG_PER_PX degrees per pixel.
-      raw = (startY - (event ? event.clientY : startY)) * THREE.MathUtils.degToRad(PITCH_DEG_PER_PX);
+      // Drag up (forwards) tips the object away from the viewer.
+      raw = ((event ? event.clientY : startY) - startY) * THREE.MathUtils.degToRad(PITCH_DEG_PER_PX);
     } else {
       const point = rotationPoint(raycaster, centre, axis);
       if (!point) return;
@@ -1764,13 +1756,14 @@ function frameDragEnd() {
   if (frameDrag.rotate) {
     rotationExpanded = false;
     const { snapshots: rotateSnapshots, isPitch, delta } = frameDrag.rotate;
-    if (isPitch === false && delta) {
+    if (delta) {
+      const key = isPitch ? "turnX" : "turnY";
       rotateSnapshots.forEach(({ object }) => {
-        const next = (object.userData.turnY || 0) + delta;
-        object.userData.turnY = Math.atan2(Math.sin(next), Math.cos(next));
+        const next = (object.userData[key] || 0) + delta;
+        object.userData[key] = Math.atan2(Math.sin(next), Math.cos(next));
       });
     }
-    const after = rotateSnapshots.map(({ object }) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0 }));
+    const after = rotateSnapshots.map(({ object }) => ({ object, position: object.position.clone(), quaternion: object.quaternion.clone(), turnY: object.userData.turnY || 0, turnX: object.userData.turnX || 0 }));
     const turned = rotateSnapshots.some((before, i) => before.position.equals(after[i].position) === false || before.quaternion.equals(after[i].quaternion) === false);
     showRotationReadout(frameDrag.box);
     frameDrag = null;
