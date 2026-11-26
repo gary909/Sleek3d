@@ -268,6 +268,21 @@ export function pickRotationHandle(handles, raycaster) {
 }
 
 export function setHoveredRotationHandle(handles, id) {
-  handles.items.forEach((item) => item.material.color.setHex(item.id === id ? HOVER_COLOR : BASE_COLOR));
+  const base = handles.ink ? handles.ink.base : BASE_COLOR;
+  const hover = handles.ink ? handles.ink.hover : HOVER_COLOR;
+  handles.items.forEach((item) => item.material.color.setHex(item.id === id ? hover : base));
+}
+
+// Recolour every arrow, tick and protractor mark (and the red origin tick) so the
+// arrows stay legible on light work planes as well as dark ones.
+export function setRotationHandlesInk(handles, ink) {
+  handles.ink = ink;
+  handles.items.forEach((item) => {
+    item.material.color.setHex(ink.base);
+    item.view.tick.material.color.setHex(ink.base);
+    if (item.view.marks.length > 0) item.view.marks[0].material.color.setHex(ink.base);
+    item.view.originTick.material.color.setHex(ink.origin);
+  });
+  setHoveredRotationHandle(handles, null);
 }
 

@@ -20,9 +20,9 @@ import {
 } from './scene.js';
 import { SHAPE_FACTORIES, SHAPE_DEFS, rebuildShapeGeometry, bakeScaleIntoParams } from './shapes.js';
 import { booleanOperation, combineGroupToMesh } from './booleans.js';
-import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures, showRotationChip, hideRotationChip } from './resizeFrame.js';
+import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, setResizeFrameInk, showResizeMeasures, hideResizeMeasures, showRotationChip, hideRotationChip } from './resizeFrame.js';
 import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale, resetSnapshots, EDGE_HANDLES, edgeTarget } from './selectionResize.js';
-import { createRotationHandles, updateRotationHandles, pickRotationHandle, setHoveredRotationHandle } from './rotationHandles.js';
+import { createRotationHandles, updateRotationHandles, pickRotationHandle, setHoveredRotationHandle, setRotationHandlesInk } from './rotationHandles.js';
 import { createRuler } from './ruler.js';
 import { yawAngle, snapAngle, applyRotation, restoreRotations } from './selectionRotate.js';
 import { createInteraction } from './interaction.js';
@@ -31,7 +31,7 @@ import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
 import { createTextMesh } from './text.js';
 import { loadImportedFile } from './importer.js';
-import { updateGrid, updateGridLod, gridFamily, IMPERIAL_GRID_SIZE } from './grid.js';
+import { updateGrid, updateGridLod, gridFamily, controlInk, IMPERIAL_GRID_SIZE } from './grid.js';
 import { processImageFile, applyReferenceMaterial } from './reference.js';
 import { loadSettings, saveSettings, getUnit, formatLength, SNAP_VALUES, snapLabel } from './settings.js';
 
@@ -2684,6 +2684,12 @@ function applySettings(s) {
   updateGrid(gridGroup, s);
   // The ruler follows the work area, the unit system and the background colour.
   ruler.setSettings(s);
+
+  // Keep the on-object controls readable: white ink on dark planes, dark ink on
+  // light ones, so a white background can't swallow the frame or the arrows.
+  const ink = controlInk(s.background);
+  setResizeFrameInk(resizeFrame, ink);
+  setRotationHandlesInk(rotationHandles, ink);
   applyStudioScale(lights, s.gridWidth, s.gridLength);
   applyShadowTint(ground, s.background);
 

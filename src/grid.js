@@ -45,6 +45,15 @@ export function backgroundIsDark(background) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b <= 0.35;
 }
 
+// Ink for the on-object controls (resize frame, dimension rods, rotation arrows).
+// Same rule as the ruler: light ink on dark work planes, dark ink on light ones, so
+// a white background cannot swallow the controls.
+export function controlInk(background) {
+  return backgroundIsDark(background)
+    ? { base: 0xffffff, hover: 0x4a90d9, origin: 0xe05555 }
+    : { base: 0x1b2126, hover: 0x1f6fbe, origin: 0xc0392b };
+}
+
 function palette(background) {
   const hex = parseInt(String(background || "#000000").replace("#", ""), 16) || 0;
   const dark = backgroundIsDark(background);

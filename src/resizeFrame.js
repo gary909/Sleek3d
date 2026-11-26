@@ -190,8 +190,23 @@ export function pickResizeHandle(frame, raycaster) {
 }
 
 export function setHoveredResizeHandle(frame, id) {
-  frame.handles.forEach((mesh, key) => mesh.material.color.setHex(key === id ? HOVER_COLOR : BASE_COLOR));
-  frame.top.material.color.setHex(id === "top" ? HOVER_COLOR : BASE_COLOR);
+  const base = frame.ink ? frame.ink.base : BASE_COLOR;
+  const hover = frame.ink ? frame.ink.hover : HOVER_COLOR;
+  frame.handles.forEach((mesh, key) => mesh.material.color.setHex(key === id ? hover : base));
+  frame.top.material.color.setHex(id === "top" ? hover : base);
+}
+
+// Recolour the frame outlines, the dimension rods and their arrowheads so they stay
+// legible whatever the work-plane background is. Handle textures already carry a
+// dark border of their own, so they need no change.
+export function setResizeFrameInk(frame, ink) {
+  frame.ink = ink;
+  frame.outline.forEach((edge) => edge.material.color.setHex(ink.base));
+  frame.measures.forEach((measure) => {
+    measure.rod.material.color.setHex(ink.base);
+    measure.heads.forEach((head) => head.material.color.setHex(ink.base));
+  });
+  setHoveredResizeHandle(frame, null);
 }
 
 function roundRect(ctx, x, y, w, h, r) {
