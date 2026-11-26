@@ -11,8 +11,7 @@ const TAPE_WIDTH = 7; // strip thickness in world units (mm)
 const TAPE_PX = 2048; // width of a tape's canvas texture
 const MOVE_PX = 26; // move plate size on screen (it sits on the interior diagonal)
 const CLOSE_PX = 18; // close plate size on screen (it sits on the corner)
-const PLATE_GAP_PX = 64; // distance from the corner to the move plate; the plane is
-// oblique on screen, so the gap needs to be generous to read clearly
+const CLOSE_GAP_PX = 34; // delete sits just outside the corner, clear of the move plate
 const MOVE_HOVER = "#4a90d9"; // same accent the rotation handles use
 const CLOSE_HOVER = "#e05555"; // red, so delete never reads as move
 const START_INSET_MM = 20; // new rulers start this far in from the corner, clear of
@@ -238,18 +237,18 @@ export function createRuler() {
       bakePlate(movePlate, state.theme, next === "ruler-move" ? MOVE_HOVER : null);
       bakePlate(closePlate, state.theme, next === "ruler-close" ? CLOSE_HOVER : null);
     },
-    // Keep both plates a constant size on screen.
+    // Keep both plates a constant size on screen. They sit outside the L, behind
+    // the corner the two arms spring from: the move handle on the corner itself and
+    // the delete just beyond it, clear of the tick strips.
     update(camera, viewportHeight) {
       if (group.visible === false || !(viewportHeight > 0)) return;
       const wpp = worldPerPixel(camera, camera.position.distanceTo(state.origin), viewportHeight);
       const y = PLANE_Y + 0.02;
-      closePlate.mesh.position.set(state.origin.x, y, state.origin.z);
-      closePlate.mesh.scale.setScalar(CLOSE_PX * wpp);
-      const gap = PLATE_GAP_PX * wpp * Math.SQRT1_2;
-      // Arms occupy +X and -Z from the corner, so the move plate sits on the
-      // interior diagonal: on the work plane and always on screen.
-      movePlate.mesh.position.set(state.origin.x + gap, y, state.origin.z - gap);
+      movePlate.mesh.position.set(state.origin.x, y, state.origin.z);
       movePlate.mesh.scale.setScalar(MOVE_PX * wpp);
+      const gap = CLOSE_GAP_PX * wpp * Math.SQRT1_2;
+      closePlate.mesh.position.set(state.origin.x - gap, y, state.origin.z + gap);
+      closePlate.mesh.scale.setScalar(CLOSE_PX * wpp);
       moveGrab.position.copy(movePlate.mesh.position);
       moveGrab.scale.set(MOVE_PX * 1.4 * wpp, MOVE_PX * 1.4 * wpp, 1);
       closeGrab.position.copy(closePlate.mesh.position);
