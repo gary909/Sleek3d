@@ -11,19 +11,13 @@ ___________________________________________
 
 TO DO:
 
-Give controls a black outline so you can see with different colour BG?
-
 More Font options / fonts
 
 More shapes / greebles? /
 
 Fix tool-tip popup from being hidden / show all tooltips?
 
-re-add colour-pallete for BG
-
 refine: 'show size on hover' stlying
-
-ruler overlay
 
 front panel designer mode?
 
@@ -34,6 +28,12 @@ Colours: add predefined pallettes
 ________________________________________
 
 DONE:
+
+Fix tool-tip popup from being hidden / show all tooltips?
+
+ruler overlay
+
+Give controls a black outline so you can see with different colour BG?
 
 Hide 'allign box' unless two shapes selected
 

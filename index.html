@@ -193,7 +193,12 @@
       <div id="settings-dialog">
         <h2>Settings</h2>
         <div class="s-row"><label>Background colour</label>
-          <span class="field-group"><input id="s-bg" type="color" /><button id="s-bg-reset" class="reset-btn" title="Reset to default">↺</button></span>
+          <span class="field-group">
+            <button type="button" id="s-bg-black" class="bg-preset bg-black" data-bg="#000000" data-tip="Black work plane" aria-label="Black background" aria-pressed="false"></button>
+            <button type="button" id="s-bg-white" class="bg-preset bg-white" data-bg="#ffffff" data-tip="White work plane" aria-label="White background" aria-pressed="false"></button>
+            <input id="s-bg" type="color" />
+            <button id="s-bg-reset" class="reset-btn" title="Reset to default">↺</button>
+          </span>
         </div>
         <div class="s-row"><label>Show shadows</label><input id="s-shadows" type="checkbox" /></div>
         <div class="s-row"><label>Show grid</label><input id="s-grid" type="checkbox" /></div>

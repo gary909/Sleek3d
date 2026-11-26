@@ -442,6 +442,7 @@ export function createSettingsPanel({ settings, onUpdate }) {
   const closeBtn = document.getElementById('s-close');
   const bgInput = document.getElementById('s-bg');
   const bgReset = document.getElementById('s-bg-reset');
+  const bgPresets = Array.from(document.querySelectorAll('.bg-preset'));
   const shadowsInput = document.getElementById('s-shadows');
   const gridInput = document.getElementById('s-grid');
   const unitsSelect = document.getElementById('s-units');
@@ -460,6 +461,17 @@ export function createSettingsPanel({ settings, onUpdate }) {
     return Number(fromMm(mmValue, settings).toFixed(2)).toString();
   }
 
+  // Light the swatch that matches the current background; a custom colour leaves
+  // both presets dark.
+  function syncPresets() {
+    const current = String(settings.background || "").toLowerCase();
+    bgPresets.forEach((preset) => {
+      const on = preset.dataset.bg.toLowerCase() === current;
+      preset.classList.toggle("active", on);
+      preset.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
   function sync() {
     bgInput.value = settings.background;
     shadowsInput.checked = settings.shadows;
@@ -468,6 +480,7 @@ export function createSettingsPanel({ settings, onUpdate }) {
     gridWInput.value = gridDisplay(settings.gridWidth);
     gridLInput.value = gridDisplay(settings.gridLength);
     syncUnits();
+    syncPresets();
   }
 
   btn.addEventListener('click', () => {
@@ -481,10 +494,22 @@ export function createSettingsPanel({ settings, onUpdate }) {
     if (e.target === modal) modal.hidden = true;
   });
 
-  bgInput.addEventListener('input', () => onUpdate({ background: bgInput.value }));
+  bgInput.addEventListener('input', () => {
+    onUpdate({ background: bgInput.value });
+    syncPresets();
+  });
+  bgPresets.forEach((preset) => {
+    preset.addEventListener('click', () => {
+      const value = preset.dataset.bg;
+      bgInput.value = value;
+      onUpdate({ background: value });
+      syncPresets();
+    });
+  });
   bgReset.addEventListener('click', () => {
     bgInput.value = DEFAULT_SETTINGS.background;
     onUpdate({ background: DEFAULT_SETTINGS.background });
+    syncPresets();
   });
   shadowsInput.addEventListener('change', () => onUpdate({ shadows: shadowsInput.checked }));
   gridInput.addEventListener('change', () => onUpdate({ grid: gridInput.checked }));
