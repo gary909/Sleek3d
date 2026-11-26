@@ -34,6 +34,11 @@ export function createInteraction({
   onBodyDragStart,
   onBodyDragMove,
   onBodyDragEnd,
+  pickRulerHandle,
+  onRulerHover,
+  onRulerDragStart,
+  onRulerDragMove,
+  onRulerDragEnd,
 }) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -45,7 +50,9 @@ export function createInteraction({
   let pointerDownOnCanvas = false;
   let frameDrag = null;
   let bodyDrag = null;
+  let rulerDrag = null;
   let hoveredHandle = null;
+  let hoveredRuler = null;
 
   function updatePointer(event) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -87,7 +94,7 @@ export function createInteraction({
   }
 
   function onPointerMove(event) {
-    if (frameDrag !== null || bodyDrag !== null) return; // drags are tracked on the window
+    if (frameDrag !== null || bodyDrag !== null || rulerDrag !== null) return; // drags are tracked on the window
     updatePointer(event);
     const handle = pickFrameHandle ? pickFrameHandle(raycaster) : null;
     if (handle !== hoveredHandle) {
@@ -95,6 +102,21 @@ export function createInteraction({
       onFrameHover?.(handle);
     }
     if (handle) {
+      if (hovered !== null) {
+        hovered = null;
+        applyHighlight();
+      }
+      return;
+    }
+    // Ruler plates advertise themselves with a cursor: move over the corner,
+    // pointer over the close button.
+    const rulerHandle = pickRulerHandle ? pickRulerHandle(raycaster) : null;
+    if (rulerHandle !== hoveredRuler) {
+      hoveredRuler = rulerHandle;
+      onRulerHover?.(rulerHandle);
+    }
+    if (rulerHandle) {
+      renderer.domElement.style.cursor = rulerHandle === "ruler-close" ? "pointer" : "move";
       if (hovered !== null) {
         hovered = null;
         applyHighlight();
@@ -139,11 +161,20 @@ export function createInteraction({
     if (event.target !== renderer.domElement) return;
     updatePointer(event);
     const handle = pickFrameHandle ? pickFrameHandle(raycaster) : null;
-    if (handle === null) return;
-    frameDrag = handle;
+    if (handle !== null) {
+      frameDrag = handle;
+      event.stopPropagation();
+      event.preventDefault();
+      onFrameDragStart?.(handle, raycaster, event);
+      return;
+    }
+    // The work-plane ruler works with nothing selected, so it gets its own path.
+    const rulerHandle = pickRulerHandle ? pickRulerHandle(raycaster) : null;
+    if (rulerHandle === null) return;
+    rulerDrag = rulerHandle;
     event.stopPropagation();
     event.preventDefault();
-    onFrameDragStart?.(handle, raycaster, event);
+    onRulerDragStart?.(rulerHandle, raycaster, event);
   }, true);
 
   // Selection happens on pointer *up*, and only if the pointer barely moved (a real
@@ -166,6 +197,13 @@ export function createInteraction({
   }
 
   function onPointerUp(event) {
+    if (rulerDrag !== null) {
+      rulerDrag = null;
+      pointerDownOnCanvas = false;
+      renderer.domElement.style.cursor = "";
+      onRulerDragEnd?.();
+      return;
+    }
     if (bodyDrag !== null) {
       const wasActive = bodyDrag.active;
       bodyDrag = null;
@@ -268,6 +306,11 @@ export function createInteraction({
   // A frame drag keeps following the pointer even outside the canvas, so the
   // object keeps rotating instead of stopping at the canvas edge.
   window.addEventListener('pointermove', (event) => {
+    if (rulerDrag !== null) {
+      updatePointer(event);
+      onRulerDragMove?.(raycaster, event);
+      return;
+    }
     if (bodyDrag !== null) {
       if (bodyDrag.active === false && Math.hypot(event.clientX - bodyDrag.downX, event.clientY - bodyDrag.downY) <= CLICK_THRESHOLD_PX) return;
       bodyDrag.active = true;
@@ -283,6 +326,10 @@ export function createInteraction({
     if (bodyDrag !== null) return;
     if (frameDrag !== null) return;
     renderer.domElement.style.cursor = "";
+    if (hoveredRuler !== null) {
+      hoveredRuler = null;
+      onRulerHover?.(null);
+    }
     if (hovered !== null) {
       hovered = null;
       applyHighlight();

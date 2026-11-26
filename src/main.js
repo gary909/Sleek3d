@@ -23,6 +23,7 @@ import { booleanOperation, combineGroupToMesh } from './booleans.js';
 import { createResizeFrame, updateResizeFrame, pickResizeHandle, setHoveredResizeHandle, showResizeMeasures, hideResizeMeasures, showRotationChip, hideRotationChip } from './resizeFrame.js';
 import { unionBounds, cornerPoints, cornerTarget, heightTarget, applyCornerScale, applyHeightScale, resetSnapshots, EDGE_HANDLES, edgeTarget } from './selectionResize.js';
 import { createRotationHandles, updateRotationHandles, pickRotationHandle, setHoveredRotationHandle } from './rotationHandles.js';
+import { createRuler } from './ruler.js';
 import { yawAngle, snapAngle, applyRotation, restoreRotations } from './selectionRotate.js';
 import { createInteraction } from './interaction.js';
 import { createUI, createSettingsPanel, initTooltips } from './ui.js';
@@ -64,6 +65,9 @@ scene.add(resizeFrame.group);
 const rotationHandles = createRotationHandles();
 scene.add(rotationHandles.group);
 
+// Optional measuring ruler lying on the work plane (added from the toolbar).
+const ruler = createRuler();
+scene.add(ruler.group);
 
 // Text labels printed flat on the grid (scale with the grid, hide with it).
 const GRID_LABEL_W = 6; // base plane width (world units, before grid scaling)
@@ -347,6 +351,55 @@ function updateDropButton() {
 
 dropBtn?.addEventListener("click", dropSelection);
 
+// ---- work-plane ruler --------------------------------------------------------
+
+const addRulerBtn = document.getElementById("add-ruler");
+let rulerDrag = null;
+
+function setRulerVisible(value) {
+  ruler.setVisible(value);
+  if (addRulerBtn) {
+    addRulerBtn.classList.toggle("active", value === true);
+    addRulerBtn.setAttribute("aria-pressed", value === true ? "true" : "false");
+  }
+}
+
+addRulerBtn?.addEventListener("click", () => {
+  const next = ruler.visible === false;
+  if (next) ruler.resetOrigin(); // start at the work-area corner, full length
+  setRulerVisible(next);
+});
+
+// The corner plate slides the ruler across the plane; the round plate closes it.
+function rulerDragStart(id, raycaster) {
+  if (id === "ruler-close") {
+    setRulerVisible(false);
+    return true;
+  }
+  const point = raycaster ? horizontalPoint(raycaster, 0) : null;
+  if (!point) return false;
+  const origin = ruler.origin;
+  rulerDrag = { offsetX: point.x - origin.x, offsetZ: point.z - origin.z };
+  return true;
+}
+
+function rulerDragMove(raycaster) {
+  if (rulerDrag === null || !raycaster) return;
+  const point = horizontalPoint(raycaster, 0);
+  if (!point) return;
+  let x = point.x - rulerDrag.offsetX;
+  let z = point.z - rulerDrag.offsetZ;
+  if (state.snap > 0) {
+    x = Math.round(x / state.snap) * state.snap;
+    z = Math.round(z / state.snap) * state.snap;
+  }
+  ruler.setOrigin(x, z);
+}
+
+function rulerDragEnd() {
+  rulerDrag = null;
+}
+
 // Navigation cube (top-right, left of the inspector).
 function viewFromAxis(axis) {
   viewTween = null;
@@ -502,6 +555,11 @@ const interaction = createInteraction({
   onBodyDragStart: beginBodyDrag,
   onBodyDragMove: moveBodyDrag,
   onBodyDragEnd: endBodyDrag,
+  pickRulerHandle: (raycaster) => ruler.pickHandle(raycaster),
+  onRulerHover: (id) => ruler.setHover(id),
+  onRulerDragStart: rulerDragStart,
+  onRulerDragMove: rulerDragMove,
+  onRulerDragEnd: rulerDragEnd,
 });
 
 transformControls.addEventListener('dragging-changed', (event) => {
@@ -2624,6 +2682,8 @@ function applySettings(s) {
   lights.sun.castShadow = s.shadows;
   gridGroup.visible = s.grid;
   updateGrid(gridGroup, s);
+  // The ruler follows the work area, the unit system and the background colour.
+  ruler.setSettings(s);
   applyStudioScale(lights, s.gridWidth, s.gridLength);
   applyShadowTint(ground, s.background);
 
@@ -2732,6 +2792,8 @@ function animate() {
   updateFrameFromSelection();
   // Keeps the inspector's Size & Position fields in step with everything else.
   updateMeasure();
+  // Ruler plates keep a constant size on screen.
+  ruler.update(camera, renderer.domElement.clientHeight);
   viewCube.update();
   renderer.render(scene, camera);
 }

@@ -11,9 +11,15 @@ ___________________________________________
 
 TO DO:
 
-Hide 'allign box' unless two shapes selected
+Give controls a black outline so you can see with different colour BG?
 
-Fix size info box size, or move to inspector?
+More Font options / fonts
+
+More shapes / greebles? /
+
+Fix tool-tip popup from being hidden / show all tooltips?
+
+re-add colour-pallete for BG
 
 refine: 'show size on hover' stlying
 
@@ -28,6 +34,10 @@ Colours: add predefined pallettes
 ________________________________________
 
 DONE:
+
+Hide 'allign box' unless two shapes selected
+
+Fix size info box size, or move to inspector?
 
 add lock/unlock editing
 

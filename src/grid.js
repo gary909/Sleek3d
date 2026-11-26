@@ -37,13 +37,17 @@ function toRgb(hex) {
 
 // Line colours follow the work-plane background so the grid stays legible on
 // both the black default and a light theme.
-function palette(background) {
+export function backgroundIsDark(background) {
   const hex = parseInt(String(background || "#000000").replace("#", ""), 16) || 0;
   const r = ((hex >> 16) & 255) / 255;
   const g = ((hex >> 8) & 255) / 255;
   const b = (hex & 255) / 255;
-  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  const dark = luma <= 0.35;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b <= 0.35;
+}
+
+function palette(background) {
+  const hex = parseInt(String(background || "#000000").replace("#", ""), 16) || 0;
+  const dark = backgroundIsDark(background);
   const target = dark ? DARK_LINE : LIGHT_LINE;
   return {
     thin: toRgb(mixHex(hex, target, dark ? 0.38 : 0.3)),
