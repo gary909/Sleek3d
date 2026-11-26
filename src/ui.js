@@ -1,4 +1,5 @@
 import { SHAPE_DEFS } from './shapes.js';
+import { TEXT_PARAM_SPECS } from './text.js';
 import { getUnit, DEFAULT_SETTINGS, fromMm, toMm, formatLength } from './settings.js';
 
 export function createUI({
@@ -220,10 +221,14 @@ export function createUI({
   }
 
   function renderDimensions(object) {
+    // Text has its own rows (font, thickness, bevel, segments) rather than a
+    // parametric SHAPE_DEFS entry.
+    const isText = Boolean(object && object.isMesh && object.userData.shapeType === 'text');
     const def = object && object.isMesh ? SHAPE_DEFS[object.userData.shapeType] : null;
+    const specs = isText ? TEXT_PARAM_SPECS : def ? def.params : null;
     dimContainer.innerHTML = '';
-    dimContainer.hidden = !def;
-    if (!def) return;
+    dimContainer.hidden = !specs;
+    if (!specs) return;
 
     const unit = getUnit(settings);
     const current = { ...(object.userData.params || {}) };
@@ -243,7 +248,32 @@ export function createUI({
       partner.slider.value = partner.toDisplay(next);
       partner.field.value = partner.format(next);
     };
-    def.params.forEach((spec) => {
+    specs.forEach((spec) => {
+      if (spec.type === 'select') {
+        const selectRow = document.createElement('div');
+        selectRow.className = 'dim-row';
+        const selectLabel = document.createElement('label');
+        selectLabel.textContent = spec.label;
+        const select = document.createElement('select');
+        select.className = 'dim-select';
+        (spec.options || []).forEach((choice) => {
+          const option = document.createElement('option');
+          option.value = choice.value;
+          option.textContent = choice.label;
+          select.appendChild(option);
+        });
+        current[spec.key] = current[spec.key] ?? spec.def;
+        select.value = current[spec.key];
+        select.addEventListener('change', () => {
+          current[spec.key] = select.value;
+          onParamChange({ ...current });
+          onParamCommit();
+        });
+        selectRow.appendChild(selectLabel);
+        selectRow.appendChild(select);
+        dimContainer.appendChild(selectRow);
+        return;
+      }
       const isLength = spec.unit !== false;
       const valueMm = current[spec.key] ?? spec.def ?? spec.min;
       current[spec.key] = valueMm;

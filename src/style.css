@@ -279,14 +279,17 @@ section:first-child {
   font-size: 13px;
 }
 
+/* The name never shrinks: the slider gives up its width first so longer labels
+   like "Thickness" and "Segments" stay readable. */
 #dimensions .dim-row label {
+  flex: 0 0 auto;
   min-width: 40px;
   white-space: nowrap;
 }
 
 #dimensions .dim-input {
   flex: 0 0 auto;
-  width: 48px;
+  width: 46px;
   font: inherit;
   font-size: 12px;
   padding: 2px 4px;
@@ -301,9 +304,20 @@ section:first-child {
   color: var(--muted);
 }
 
+#dimensions .dim-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+}
+
 #dimensions .dim-slider {
   flex: 1 1 auto;
-  min-width: 48px;
+  min-width: 22px;
   width: auto;
 }
 

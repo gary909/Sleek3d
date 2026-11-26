@@ -29,7 +29,7 @@ import { createInteraction } from './interaction.js';
 import { createUI, createSettingsPanel, initTooltips } from './ui.js';
 import { createHistory } from './history.js';
 import { saveProject, loadProject, serializeScene, deserializeScene } from './save.js';
-import { createTextMesh } from './text.js';
+import { createTextMesh, rebuildTextMesh, rebuildTextMeshSync, DEFAULT_TEXT_PARAMS, TEXT_PARAM_SPECS } from './text.js';
 import { loadImportedFile } from './importer.js';
 import { updateGrid, updateGridLod, gridFamily, controlInk, IMPERIAL_GRID_SIZE } from './grid.js';
 import { processImageFile, applyReferenceMaterial } from './reference.js';
@@ -647,7 +647,7 @@ function addShape(type) {
 async function addTextShape() {
   const text = window.prompt('Text to add', 'Sleek3d');
   if (!text || !text.trim()) return;
-  const mesh = await createTextMesh(text.trim(), { size: 10, depth: 2 });
+  const mesh = await createTextMesh(text.trim(), DEFAULT_TEXT_PARAMS);
   scene.add(mesh);
   state.shapes.push(mesh);
   applyOnTopGhosts();
@@ -967,8 +967,8 @@ function commandUngroup(entries) {
 
 function commandReshape(mesh, beforeParams, afterParams) {
   return {
-    undo: () => rebuildShapeGeometry(mesh, beforeParams),
-    redo: () => rebuildShapeGeometry(mesh, afterParams),
+    undo: () => rebuildShape(mesh, beforeParams),
+    redo: () => rebuildShape(mesh, afterParams),
   };
 }
 
@@ -1045,7 +1045,31 @@ function onColorCommit() {
 
 function editableMesh(object) {
   if (!object || !object.isMesh) return null;
+  // Text is editable through its own inspector rows (font, thickness, bevel,
+  // segments) even though it has no parametric SHAPE_DEFS entry.
+  if (object.userData.shapeType === "text") return object;
   return SHAPE_DEFS[object.userData.shapeType] ? object : null;
+}
+
+// The inspector rows for a shape. Text has its own spec list (font, thickness,
+// bevel, segments) because it is not a parametric SHAPE_DEFS entry.
+function paramSpecsFor(mesh) {
+  if (mesh.userData.shapeType === "text") return TEXT_PARAM_SPECS;
+  const def = SHAPE_DEFS[mesh.userData.shapeType];
+  return def ? def.params : null;
+}
+
+// Rebuild a shape after a parameter change. Text geometry needs its font, so it
+// rebuilds instantly when that font is cached and asynchronously otherwise.
+function rebuildShape(mesh, params) {
+  if (mesh.userData.shapeType !== "text") return rebuildShapeGeometry(mesh, params);
+  if (rebuildTextMeshSync(mesh, params)) return true;
+  rebuildTextMesh(mesh, params).then(() => {
+    ui.refresh();
+    updateMeasure();
+    scheduleSave();
+  });
+  return true;
 }
 
 function onParamChange(params) {
@@ -1055,14 +1079,14 @@ function onParamChange(params) {
   if (!resizeGesture || resizeGesture.mesh !== mesh) {
     resizeGesture = { mesh, beforeParams: { ...mesh.userData.params } };
   }
-  const def = SHAPE_DEFS[mesh.userData.shapeType];
+  const specs = paramSpecsFor(mesh);
   const next = { ...(mesh.userData.params || {}) };
-  if (def) {
-    def.params.forEach((spec) => {
+  if (specs) {
+    specs.forEach((spec) => {
       if (params[spec.key] !== undefined) next[spec.key] = params[spec.key];
     });
   }
-  rebuildShapeGeometry(mesh, next);
+  rebuildShape(mesh, next);
   updateMeasure();
   scheduleSave();
 }
