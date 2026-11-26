@@ -15,6 +15,8 @@ const PLATE_GAP_PX = 64; // distance from the corner to the move plate; the plan
 // oblique on screen, so the gap needs to be generous to read clearly
 const MOVE_HOVER = "#4a90d9"; // same accent the rotation handles use
 const CLOSE_HOVER = "#e05555"; // red, so delete never reads as move
+const START_INSET_MM = 20; // new rulers start this far in from the corner, clear of
+// the "Sleek 3D" label that sits there
 
 function worldPerPixel(camera, distance, viewportHeight) {
   if (camera.isOrthographicCamera) return ((camera.top - camera.bottom) / camera.zoom) / viewportHeight;
@@ -61,14 +63,14 @@ function createTape(direction, normal, offset) {
 
 // Bake tick marks into the tape's texture. The arms carry no numbers: they are a
 // pure scale, and `side` picks which long edge the ticks hang from.
-function bakeTape(tape, length, majorStep, minorStep, theme, side, skipFrom) {
+function bakeTape(tape, length, majorStep, minorStep, theme, side) {
   if (length <= 0.5) return;
   const height = Math.max(48, Math.min(220, Math.round((tape.canvas.width * TAPE_WIDTH) / length)));
   if (tape.canvas.height !== height) {
     tape.canvas.height = height;
     tape.key = "";
   }
-  const key = [Math.round(length * 2) / 2, majorStep, minorStep, theme.key, side, skipFrom].join("|");
+  const key = [Math.round(length * 2) / 2, majorStep, minorStep, theme.key, side].join("|");
   if (tape.key === key) return;
   tape.key = key;
 
@@ -89,13 +91,12 @@ function bakeTape(tape, length, majorStep, minorStep, theme, side, skipFrom) {
   const minorEnd = side === "top" ? h * 0.34 : h * 0.66;
   const majorEnd = side === "top" ? h * 0.58 : h * 0.42;
 
-  // Ticks only begin past the corner square, where the two arms meet, so the marks
-  // never run into the other arm.
+  // Ticks run the whole length, starting at zero on the inner corner where the two
+  // arms meet.
   ctx.strokeStyle = theme.ink;
   ctx.lineWidth = Math.max(1, h * 0.022);
   ctx.beginPath();
   for (let mm = 0; mm <= length + 1e-6; mm += minorStep) {
-    if (mm < skipFrom - 1e-6) continue;
     const x = mm * pxPerMm;
     ctx.moveTo(x, edge);
     ctx.lineTo(x, minorEnd);
@@ -105,9 +106,7 @@ function bakeTape(tape, length, majorStep, minorStep, theme, side, skipFrom) {
   ctx.lineWidth = Math.max(2, h * 0.035);
   ctx.beginPath();
   for (let i = 0; i * majorStep <= length + 1e-6; i += 1) {
-    const mm = i * majorStep;
-    if (mm < skipFrom - 1e-6) continue;
-    const x = mm * pxPerMm;
+    const x = i * majorStep * pxPerMm;
     ctx.moveTo(x, edge);
     ctx.lineTo(x, majorEnd);
   }
@@ -164,23 +163,26 @@ export function createRuler() {
   };
 
   // The ruler is a fixed size (half the work area on each axis, like Tinkercad), so
-  // dragging it around never changes the measurements. The corner is clamped so
-  // the whole L stays on the plane.
+  // dragging it around never changes the measurements. Both arms start at the inner
+  // corner where they meet, and the corner is clamped so the whole L stays on the
+  // plane.
   function applyLayout() {
     const halfW = state.width / 2;
     const halfL = state.length / 2;
     const lengthX = Math.max(1, state.width / 2);
     const lengthZ = Math.max(1, state.length / 2);
-    state.origin.x = Math.max(-halfW, Math.min(halfW - lengthX, state.origin.x));
-    state.origin.z = Math.max(-halfL + lengthZ, Math.min(halfL, state.origin.z));
-    layoutTape(xTape, state.origin.x, state.origin.z, lengthX);
-    layoutTape(zTape, state.origin.x, state.origin.z, lengthZ);
+    state.origin.x = Math.max(-halfW, Math.min(halfW - lengthX - TAPE_WIDTH, state.origin.x));
+    state.origin.z = Math.max(-halfL + lengthZ + TAPE_WIDTH, Math.min(halfL, state.origin.z));
+    // Each arm begins at the inner corner, so the two strips touch without
+    // overlapping and the scale starts right at their meeting point.
+    layoutTape(xTape, state.origin.x + TAPE_WIDTH, state.origin.z, lengthX);
+    layoutTape(zTape, state.origin.x, state.origin.z - TAPE_WIDTH, lengthZ);
     if (state.settings) {
       const steps = GRID_STEPS[gridFamily(state.settings)];
-      // The X arm hangs its ticks off the inner edge; the Z arm keeps them on its
-      // own inner edge. Neither starts inside the corner square.
-      bakeTape(xTape, lengthX, steps.mid, steps.thin, state.theme, "top", TAPE_WIDTH);
-      bakeTape(zTape, lengthZ, steps.mid, steps.thin, state.theme, "bottom", TAPE_WIDTH);
+      // Zero sits at the start of each arm: minor ticks every thin step, the first
+      // major one on the tenth mark.
+      bakeTape(xTape, lengthX, steps.mid, steps.thin, state.theme, "top", 0);
+      bakeTape(zTape, lengthZ, steps.mid, steps.thin, state.theme, "bottom", 0);
     }
     bakePlate(movePlate, state.theme, state.hovered === "ruler-move" ? MOVE_HOVER : null);
     bakePlate(closePlate, state.theme, state.hovered === "ruler-close" ? CLOSE_HOVER : null);
@@ -219,11 +221,13 @@ export function createRuler() {
       state.origin.z = z;
       applyLayout();
     },
-    // Put the corner back at the front-left vertex of the work area, so the X arm
-    // runs right along the front edge and the Z arm runs back along the left one.
+    // Put the corner back near the front-left of the work area, but inset a little
+    // so the ruler does not sit on top of the "Sleek 3D" label in the corner.
     resetOrigin() {
-      state.origin.x = -state.width / 2;
-      state.origin.z = state.length / 2;
+      const insetX = Math.min(START_INSET_MM, state.width / 4);
+      const insetZ = Math.min(START_INSET_MM, state.length / 4);
+      state.origin.x = -state.width / 2 + insetX;
+      state.origin.z = state.length / 2 - insetZ;
       applyLayout();
     },
     // Highlight whichever plate the pointer is over (blue to move, red to delete).
